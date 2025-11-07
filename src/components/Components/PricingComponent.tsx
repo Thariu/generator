@@ -132,7 +132,7 @@ const PricingComponent: React.FC<PricingComponentProps> = ({ component }) => {
 
   return (
     <section ref={containerRef} id='priceArea' className={`baseColor`} style={containerStyle}>
-      <h3>コンテンツ</h3>
+      <h3>コンテンツを見るには</h3>
       <div className='priceInfo priceInfo1'>
         {/* <p className='subTitle alignBaseline main-pattern-1'><span className='textLarge'>ご加入月は<span className='price'>0</span>円</span>で<br className='sp'/>人気番組が楽しめる！</p> */}
         <p className='subTitle main-pattern-1'><span className='textLarge'>契約月は無料</span>で<br className='sp'/>人気番組が楽しめる！</p>
