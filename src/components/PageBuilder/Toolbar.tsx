@@ -22,7 +22,7 @@ import { usePageStore } from '../../store/usePageStore';
 import { prepareImagesForExport } from '../../utils/imageHandler';
 import { generateGlobalStylesCSS } from '../../utils/globalStylesHelper';
 import { generateComponentHTML, getRequiredCSSFiles, generateCSSLinks, getCategoryFromComponentType } from '../../utils/htmlGenerator';
-import { generateCSSTemplate, generateSectionId, saveCSSMetadata, isCSSGenerated } from '../../utils/cssTemplateGenerator';
+import { generateCSSTemplate, generateSectionId, saveCSSMetadata, isCSSGenerated, collectCustomCSSByCategory, appendCustomCSSToFile } from '../../utils/cssTemplateGenerator';
 import { wrapComponentHTML } from '../../utils/componentHtmlWrapper';
 import { componentTemplates } from '../../data/componentTemplates';
 import GlobalSettingsPanel from './GlobalSettingsPanel';
@@ -316,17 +316,25 @@ HTMLファイルには、ページ設定で設定した共通スタイル（main
       }
     });
 
+    // カスタムCSSをカテゴリごとに収集
+    const customCSSByCategory = collectCustomCSSByCategory(pageData.components);
+
     // 新しいカテゴリをチェック
     const newCategories = Array.from(allCategories).filter(
       cat => !predefinedCategories.has(cat) && !isCSSGenerated(cat)
     );
 
-    if (newCategories.length === 0) {
-      return; // 新しいカテゴリがない場合は何もしない
+    // カスタムCSSがあるカテゴリも含めて処理
+    const categoriesToProcess = new Set([...newCategories, ...Array.from(allCategories)]);
+
+    if (categoriesToProcess.size === 0 && customCSSByCategory.size === 0) {
+      return; // 処理するカテゴリがない場合は何もしない
     }
 
-    // 新しいカテゴリのCSSテンプレートを生成してダウンロード
-    newCategories.forEach(category => {
+    const processedCategories: string[] = [];
+
+    // 各カテゴリのCSSファイルを生成
+    categoriesToProcess.forEach(category => {
       const fileName = category
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
@@ -334,27 +342,62 @@ HTMLファイルには、ページ設定で設定した共通スタイル（main
         .replace(/^-+|-+$/g, '') + '.css';
 
       const sectionId = generateSectionId(category);
-      const cssContent = generateCSSTemplate(category, fileName);
+      
+      // ベースCSSを生成（新しいカテゴリの場合のみ）
+      let cssContent = '';
+      if (newCategories.includes(category)) {
+        cssContent = generateCSSTemplate(category, fileName);
+      } else {
+        // 既存のカテゴリの場合は、カスタムCSSのみを含むファイルを生成
+        cssContent = `/* ${category}コンポーネント用CSS */\n\n`;
+      }
 
-      // CSSファイルをダウンロード
-      downloadFile(cssContent, fileName, 'text/css');
+      // カスタムCSSを追加
+      const customCSS = customCSSByCategory.get(category);
+      if (customCSS) {
+        cssContent = appendCustomCSSToFile(cssContent, customCSS);
+      }
 
-      // メタデータを保存
-      saveCSSMetadata({
-        category,
-        fileName,
-        sectionId,
-        generated: true
-      });
+      // カスタムCSSがある場合、または新しいカテゴリの場合はダウンロード
+      if (customCSS || newCategories.includes(category)) {
+        // CSSファイルをダウンロード
+        downloadFile(cssContent, fileName, 'text/css');
+        processedCategories.push(category);
+
+        // メタデータを保存（新しいカテゴリの場合のみ）
+        if (newCategories.includes(category)) {
+          saveCSSMetadata({
+            category,
+            fileName,
+            sectionId,
+            generated: true
+          });
+        }
+      }
     });
 
     // アラートで通知
-    if (newCategories.length > 0) {
-      alert(
-        `新しいカテゴリのCSSテンプレートを生成しました:\n\n` +
-        newCategories.map(cat => `- ${cat} (${cat.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-')}.css)`).join('\n') +
-        `\n\nダウンロードしたCSSファイルを /public/program/st/promo/generator_common/css/ に配置してください。`
-      );
+    if (processedCategories.length > 0) {
+      const newCategoryList = newCategories.map(cat => 
+        `- ${cat} (${cat.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-')}.css)`
+      ).join('\n');
+      
+      const customCSSList = Array.from(customCSSByCategory.keys())
+        .filter(cat => !newCategories.includes(cat))
+        .map(cat => `- ${cat} (カスタムCSS追加済み)`)
+        .join('\n');
+
+      let message = 'CSSファイルを生成しました:\n\n';
+      if (newCategoryList) {
+        message += `【新しいカテゴリ】\n${newCategoryList}\n\n`;
+      }
+      if (customCSSList) {
+        message += `【カスタムCSS追加】\n${customCSSList}\n\n`;
+      }
+      message += 'ダウンロードしたCSSファイルを /public/program/st/promo/generator_common/css/ に配置してください。\n\n';
+      message += '※ 既存のCSSファイルがある場合は、カスタムCSS部分を手動で追加してください。';
+
+      alert(message);
     }
   };
 

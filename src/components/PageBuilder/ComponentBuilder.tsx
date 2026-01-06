@@ -1,6 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Plus, Trash2, Download, Copy, Check, Code, Wand2, Eye, AlertTriangle, History, Save } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import {
   validateComponentNameRomanized,
   validateCategoryRomanized,
@@ -10,14 +9,15 @@ import {
   addComponentTemplate,
   getComponentTemplates,
   getComponentTemplateByName,
-  saveComponentTemplateToSupabase,
-  releaseComponentTemplate,
   getComponentVersionHistory,
   getComponentTemplateByVersion
 } from '../../utils/componentTemplateStorage';
+import { componentTemplates } from '../../data/componentTemplates';
 import ComponentPreview from './ComponentPreview';
 import { validatePropFields, formatValidationMessages, PropField as ValidationPropField } from '../../utils/propValidation';
 import { usePageStore } from '../../store/usePageStore';
+import { ComponentType } from '../../types';
+import { scopeCSSWithSectionId, generateCSSTemplate, appendCustomCSSToFile, isCSSGenerated } from '../../utils/cssTemplateGenerator';
 
 interface PropField {
   id: string;
@@ -511,14 +511,27 @@ const styles = {
 };
 
 const ComponentBuilder: React.FC = () => {
-  const CATEGORY_ROMANIZED_MAP: Record<string, string> = {
-    'KV': 'kv',
-    '料金': 'pricing',
-    '番組配信': 'streaming',
-    'FAQ': 'faq',
-    'footer': 'footer',
-    'テスト': 'test',
-  };
+  // CATEGORY_ROMANIZED_MAPを動的に生成
+  const CATEGORY_ROMANIZED_MAP = useMemo(() => {
+    const map: Record<string, string> = {};
+    
+    // componentTemplates.tsから取得
+    componentTemplates.forEach(t => {
+      if (t.category && t.categoryRomanized) {
+        map[t.category] = t.categoryRomanized;
+      }
+    });
+    
+    // localStorageからも取得
+    const customTemplates = getComponentTemplates();
+    customTemplates.forEach(t => {
+      if (t.category && t.categoryRomanized) {
+        map[t.category] = t.categoryRomanized;
+      }
+    });
+    
+    return map;
+  }, []);
 
   const [componentName, setComponentName] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -533,6 +546,7 @@ const ComponentBuilder: React.FC = () => {
   const [cssFiles, setCssFiles] = useState<string[]>([]);
   const [jsFiles, setJsFiles] = useState<string[]>([]);
   const [htmlCode, setHtmlCode] = useState('');
+  const [customCssCode, setCustomCssCode] = useState('');
   const [propFields, setPropFields] = useState<PropField[]>([]);
   const [generatedCode, setGeneratedCode] = useState('');
   const [isSaved, setIsSaved] = useState(false);
@@ -564,7 +578,7 @@ const ComponentBuilder: React.FC = () => {
   const [versionHistory, setVersionHistory] = useState<any[]>([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   
-  const { pageData } = usePageStore();
+  const { pageData, addComponent } = usePageStore();
 
   const parseHtmlTags = (html: string) => {
     const tags: Array<{ tag: string; fullElement: string; position: { start: number; end: number }; tagName: string }> = [];
@@ -673,38 +687,24 @@ const ComponentBuilder: React.FC = () => {
   }, [htmlCode]);
 
   React.useEffect(() => {
-    const loadCategories = async () => {
-      const defaultCategories = ['KV', '料金'];
+    const loadCategories = () => {
+      // componentTemplates.tsからカテゴリを取得
+      const categoriesFromTemplates = Array.from(
+        new Set(componentTemplates.map(t => t.category))
+      ).filter(Boolean);
 
-      // Supabaseが利用可能な場合、デフォルトのカテゴリを読み込み
-      if (!supabase) {
-        setExistingCategories(defaultCategories);
-        return;
-      }
+      // localStorageからもカテゴリを取得
+      const customTemplates = getComponentTemplates();
+      const categoriesFromStorage = Array.from(
+        new Set(customTemplates.map(t => t.category))
+      ).filter(Boolean);
 
-      try {
-        const { data, error } = await supabase!
-          .from('component_templates')
-          .select('category')
-          .order('category');
+      // すべてのカテゴリをマージ
+      const allCategories = Array.from(
+        new Set([...categoriesFromTemplates, ...categoriesFromStorage])
+      ).sort();
 
-        if (error) {
-          console.error('Error loading categories:', error);
-          setExistingCategories(defaultCategories);
-          return;
-        }
-
-        if (data) {
-          const dbCategories = data.map((item: { category: string }) => item.category);
-          const allCategories = Array.from(new Set([...defaultCategories, ...dbCategories])).sort();
-          setExistingCategories(allCategories);
-        } else {
-          setExistingCategories(defaultCategories);
-        }
-      } catch (error) {
-        console.error('Error loading categories:', error);
-        setExistingCategories(defaultCategories);
-      }
+      setExistingCategories(allCategories);
     };
 
     loadCategories();
@@ -1349,6 +1349,29 @@ const ComponentBuilder: React.FC = () => {
     const propNames = mainProps.map(f => f.name).filter(Boolean).join(', ');
     const propsDestructure = mainProps.length > 0 ? `const { ${propNames} } = props;` : '';
 
+    // metadataを取得してsectionIdを使用
+    const finalCategory = isNewCategory ? newCategoryName.trim() : category;
+    const finalCategoryRomanized = isNewCategory ? newCategoryRomanized.trim() : categoryRomanized;
+    const metadata = generateComponentMetadata(
+      finalCategory,
+      finalCategoryRomanized,
+      componentName
+    );
+
+    // HTMLコード内のclass属性をclassNameに変換
+    // class="..." または class='...' のパターンを検出して変換
+    const convertClassToClassName = (html: string): string => {
+      // class="..." のパターンを className="..." に変換
+      html = html.replace(/\bclass\s*=\s*"([^"]*)"/g, 'className="$1"');
+      // class='...' のパターンを className='...' に変換
+      html = html.replace(/\bclass\s*=\s*'([^']*)'/g, "className='$1'");
+      // class={...} のパターンも className={...} に変換（テンプレートリテラルの場合）
+      html = html.replace(/\bclass\s*=\s*\{([^}]*)\}/g, 'className={$1}');
+      return html;
+    };
+
+    const processedHtmlCode = convertClassToClassName(htmlCode);
+
     const cssFilesComment = cssFiles.length > 0
       ? `/**
  * Required CSS Files:
@@ -1394,9 +1417,9 @@ const ${componentName}: React.FC<${componentName}Props> = ({ component }) => {
   };
 
   return (
-    <section ref={containerRef} style={containerStyle}>
+    <section id="${metadata.sectionId}" ref={containerRef} style={containerStyle}>
       <div style={innerStyle}>
-${htmlCode.split('\n').map(line => '        ' + line).join('\n')}
+${processedHtmlCode.split('\n').map(line => '        ' + line).join('\n')}
       </div>
     </section>
   );
@@ -1414,13 +1437,15 @@ export default ${componentName};`;
       return;
     }
 
-    // プロパティのバリデーション
-    const validation = validateProps(propFields);
-    if (!validation.isValid) {
-      const messages = formatValidationMessages(validation);
-      const confirmMessage = `プロパティにエラーがあります\n\n${messages.join('\n')}\n\nそれでも保存しますか？`;
-      if (!window.confirm(confirmMessage)) {
-        return;
+    // プロパティのバリデーション（プロパティが存在する場合のみ）
+    if (propFields.length > 0) {
+      const validation = validateProps(propFields);
+      if (!validation.isValid) {
+        const messages = formatValidationMessages(validation);
+        const confirmMessage = `プロパティにエラーがあります\n\n${messages.join('\n')}\n\nそれでも保存しますか？`;
+        if (!window.confirm(confirmMessage)) {
+          return;
+        }
       }
     }
 
@@ -1484,6 +1509,86 @@ export default ${componentName};`;
       }
     });
 
+    // HTMLコード内のclass属性をclassNameに変換する関数
+    const convertClassToClassName = (html: string): string => {
+      // class="..." のパターンを className="..." に変換
+      html = html.replace(/\bclass\s*=\s*"([^"]*)"/g, 'className="$1"');
+      // class='...' のパターンを className='...' に変換
+      html = html.replace(/\bclass\s*=\s*'([^']*)'/g, "className='$1'");
+      // class={...} のパターンも className={...} に変換（テンプレートリテラルの場合）
+      html = html.replace(/\bclass\s*=\s*\{([^}]*)\}/g, 'className={$1}');
+      return html;
+    };
+
+    // generatedCodeが空の場合でも基本的なコンポーネントファイルを生成
+    let finalGeneratedCode = generatedCode;
+    if (!finalGeneratedCode || !finalGeneratedCode.trim()) {
+      const mainProps = propFields.filter(f => !f.arrayParentId);
+      const propNames = mainProps.map(f => f.name).filter(Boolean).join(', ');
+      const propsDestructure = mainProps.length > 0 ? `const { ${propNames} } = props;` : '';
+
+      // HTMLコード内のclass属性をclassNameに変換
+      const processedHtmlCode = convertClassToClassName(htmlCode || '<!-- HTMLコードをここに追加してください -->');
+
+      const cssFilesComment = cssFiles.length > 0
+        ? `/**
+ * Required CSS Files:
+${cssFiles.map(file => ` * - /generator_common/css/${file}`).join('\n')}
+ */
+
+`
+        : '';
+
+      const jsFilesComment = jsFiles.length > 0
+        ? `/**
+ * Required JS Files:
+${jsFiles.map(file => ` * - /generator_common/js/${file}`).join('\n')}
+ */
+
+`
+        : '';
+
+      finalGeneratedCode = `${cssFilesComment}${jsFilesComment}import React from 'react';
+import { ComponentData } from '../../types';
+import { useComponentData } from '../../hooks/useComponentData';
+import { useDataPropBinding } from '../../hooks/useDataPropBinding';
+
+interface ${componentName}Props {
+  component: ComponentData;
+  isEditing?: boolean;
+}
+
+const ${componentName}: React.FC<${componentName}Props> = ({ component }) => {
+  const { props, style, globalStyles } = useComponentData(component);
+  const containerRef = useDataPropBinding({ props });
+
+  ${propsDestructure}
+
+  const containerStyle: React.CSSProperties = {
+    backgroundColor: style?.backgroundColor || globalStyles?.baseColor || '#ffffff',
+    padding: '60px 20px',
+  };
+
+  const innerStyle: React.CSSProperties = {
+    maxWidth: '1200px',
+    margin: '0 auto',
+  };
+
+  return (
+    <section id="${metadata.sectionId}" ref={containerRef} style={containerStyle}>
+      <div style={innerStyle}>
+        ${processedHtmlCode}
+      </div>
+    </section>
+  );
+};
+
+export default ${componentName};`;
+    } else {
+      // generatedCodeが既に存在する場合も、class属性をclassNameに変換
+      finalGeneratedCode = convertClassToClassName(finalGeneratedCode);
+    }
+
     try {
       // 1. コンポーネントファイル名を生成
       const componentFileName = componentName
@@ -1492,7 +1597,7 @@ export default ${componentName};`;
         .join('') + 'Component.tsx';
 
       console.log('生成されたコンポーネントファイル名', componentFileName);
-      console.log('生成されたコード', generatedCode);
+      console.log('生成されたコード', finalGeneratedCode);
 
       const templateData = {
         name: componentName,
@@ -1504,31 +1609,167 @@ export default ${componentName};`;
         sectionId: metadata.sectionId,
         description,
         thumbnailUrl: thumbnailUrl,
-        codeTemplate: generatedCode,
+        codeTemplate: finalGeneratedCode,
         defaultProps: defaultProps,
         propSchema: propSchema,
         cssFiles: cssFiles,
         jsFiles: jsFiles,
+        customCssCode: customCssCode.trim() || undefined,
         isActive: true,
       };
 
-      // 2. Supabaseに保存（ドラフトまたはリリース版として）
-      let savedTemplate = null;
-      if (supabase) {
-        try {
-          savedTemplate = await saveComponentTemplateToSupabase(templateData, saveAsDraft);
-          if (savedTemplate) {
-            console.log('Supabaseに保存しました:', savedTemplate);
-          }
-        } catch (supabaseError) {
-          console.warn('Supabaseへの保存に失敗しました。localStorageにフォールバックします', supabaseError);
+      // 2. localStorageに保存
+      const savedTemplate = addComponentTemplate(templateData);
+
+      // 4. CSSファイルの準備（カスタムCSSがある場合）
+      let cssFileName: string | undefined;
+      let cssContent: string | undefined;
+      let isExistingCategoryForCSS = false;
+      
+      if (customCssCode && customCssCode.trim()) {
+        const sectionId = metadata.sectionId;
+        const { getCSSMetadata } = await import('../../utils/cssTemplateGenerator');
+        
+        // 既存のカテゴリかどうかをチェック
+        const existingMetadata = getCSSMetadata().find(m => m.category === finalCategory);
+        isExistingCategoryForCSS = !!existingMetadata;
+        
+        if (isExistingCategoryForCSS) {
+          // 既存のカテゴリの場合：既存のCSSファイルに追加する形式で、カスタムCSSのみを含むファイルを生成
+          cssFileName = existingMetadata.fileName;
+          const scopedCss = scopeCSSWithSectionId(customCssCode, sectionId);
+          cssContent = `/* ======================================== */\n/* ${displayName} のカスタムCSS追加分 */\n/* ======================================== */\n\n${scopedCss}`;
+        } else {
+          // 新規カテゴリの場合：カスタムCSSのみを生成（ベースCSSは生成しない）
+          cssFileName = metadata.cssFileName || `${finalCategoryRomanized}.css`;
+          
+          // カスタムCSSをスコープ化して追加（ベースCSSは生成しない）
+          const scopedCss = scopeCSSWithSectionId(customCssCode, sectionId);
+          cssContent = scopedCss;
+          
+          // メタデータを保存（新規カテゴリの場合のみ）
+          const { saveCSSMetadata, generateSectionId: generateSectionIdForCSS } = await import('../../utils/cssTemplateGenerator');
+          saveCSSMetadata({
+            category: finalCategory,
+            fileName: cssFileName,
+            sectionId: generateSectionIdForCSS(finalCategory),
+            generated: true
+          });
         }
       }
 
-      // 3. localStorageにも保存（フォールバックまたは追加保存！）
-      const localTemplate = addComponentTemplate(templateData);
-      if (!savedTemplate) {
-        savedTemplate = localTemplate;
+      // 5. ローカルAPIを呼び出してコンポーネントファイルとCSSファイルを自動作成
+      try {
+        if (finalGeneratedCode) {
+          const response = await fetch('/api/create-component', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              componentName,
+              displayName,
+              category: finalCategory,
+              categoryRomanized: finalCategoryRomanized,
+              generatedCode: finalGeneratedCode,
+              uniqueId: metadata.uniqueId,
+              sectionId: metadata.sectionId,
+              cssContent: cssContent,
+              cssFileName: cssFileName,
+              isExistingCategory: isExistingCategoryForCSS,
+              isNewCategory: !isExistingCategoryForCSS,
+              defaultProps: defaultProps,
+              propSchema: propSchema,
+              cssFiles: cssFiles,
+              jsFiles: jsFiles,
+              description: description,
+              thumbnailUrl: thumbnailUrl,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (data.success) {
+            console.log('Component file created:', data);
+            alert(`コンポーネント「${displayName}」が正常に作成されました！\n\n作成されたファイル:\n- ${data.fileName}\n${data.cssFileName ? `- ${data.cssFileName}` : ''}\n\ncomponentTemplates.tsも更新されました。`);
+          } else {
+            // ファイル重複エラーの場合
+            if (data.error === 'FILE_EXISTS') {
+              alert(`エラー: ファイル「${data.fileName}」は既に存在します。\n\nファイルパス: ${data.filePath}\n\n別のコンポーネント名またはカテゴリを選択してください。`);
+              throw new Error(data.message || 'ファイルが既に存在します');
+            } else {
+              throw new Error(data.error || data.message || 'コンポーネントの作成に失敗しました');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('コンポーネントファイルの作成に失敗しました:', error);
+        alert(`コンポーネントファイルの作成に失敗しました。\n\nエラー: ${error instanceof Error ? error.message : '不明なエラー'}\n\n開発サーバー（npm run dev）が起動していることを確認してください。`);
+        // フォールバック：ダウンロード
+        if (finalGeneratedCode) {
+          downloadComponentFile(componentName, finalGeneratedCode);
+        }
+        if (cssContent && cssFileName) {
+          const blob = new Blob([cssContent], { type: 'text/css' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = cssFileName;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      }
+
+      // 6. 関連ファイル更新ガイドのダウンロード - 削除（自動化されたため不要）
+
+      // 7. ページにコンポーネントを自動追加
+      try {
+        // componentNameからタイプを生成（例: "programHero" -> "program-hero"）
+        // ComponentLibraryと同じ方法でタイプを決定
+        const componentTypeFromName = componentName
+          .replace(/Component$/i, '')
+          .replace(/([A-Z])/g, '-$1')
+          .toLowerCase()
+          .replace(/^-/, '');
+        
+        // 既存のComponentTypeに存在するかチェック
+        const existingTypes: ComponentType[] = ['kv', 'test', 'footer', 'about', 'pricing', 'contact', 'headline', 'app-intro', 'tab', 'modal', 'slider', 'tel'];
+        
+        // カテゴリマッピングを使用してタイプを決定
+        const categoryTypeMap: Record<string, ComponentType> = {
+          'kv': 'kv',
+          'pricing': 'pricing',
+          'streaming': 'app-intro',
+          'faq': 'test',
+          'footer': 'footer',
+          'test': 'test',
+        };
+        
+        let validComponentType: ComponentType = categoryTypeMap[finalCategoryRomanized] || 
+          (existingTypes.includes(componentTypeFromName as ComponentType) 
+            ? (componentTypeFromName as ComponentType)
+            : 'test' as ComponentType); // フォールバック
+        
+        // componentTemplates.tsから該当するテンプレートを取得してtemplateIdを設定
+        const matchingTemplate = componentTemplates.find(t => 
+          t.uniqueId === metadata.uniqueId || t.id === metadata.uniqueId
+        );
+        
+        const newComponent = {
+          id: `${validComponentType}-${Date.now()}`,
+          type: validComponentType,
+          props: { ...defaultProps },
+          style: { theme: 'light' as const, colorScheme: 'blue' as const },
+          templateId: matchingTemplate?.id || metadata.uniqueId, // テンプレートIDを保存
+        };
+        
+        addComponent(newComponent);
+      } catch (error) {
+        console.warn('ページへのコンポーネント追加に失敗しました:', error);
+        // エラーが発生しても続行
       }
 
       if (isNewCategory && newCategoryName.trim()) {
@@ -1544,8 +1785,8 @@ export default ${componentName};`;
       setTimeout(() => setIsSaved(false), 3000);
       
       const saveMessage = saveAsDraft 
-        ? 'コンポーネントがドラフト版として保存されました'
-        : 'コンポーネントがリリース版として保存されました';
+        ? 'コンポーネントがドラフト版として保存され、ページに追加されました'
+        : 'コンポーネントがリリース版として保存され、ページに追加されました';
       alert(saveMessage);
     } catch (error) {
       console.error('Error saving component:', error);
@@ -1573,6 +1814,7 @@ export default ${componentName};`;
       setThumbnailUrl(template.thumbnailUrl || '');
       setCssFiles(template.cssFiles);
       setJsFiles(template.jsFiles);
+      setCustomCssCode(template.customCssCode || '');
       setHtmlCode(template.codeTemplate);
       // propFieldsの復元が必要なので、コード生成から送信する必要がある
       setGeneratedCode(template.codeTemplate);
@@ -2123,6 +2365,47 @@ Unique ID: ${metadata.uniqueId}
             </div>
           )}
 
+          {/* CSSコード入力欄 */}
+          <div style={{ marginTop: '24px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
+            }}>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', color: '#374151', margin: 0 }}>
+                <Code size={18} style={{ marginRight: '8px', display: 'inline', verticalAlign: 'middle' }} />
+                CSSコード（任意）
+              </h4>
+            </div>
+            <p style={styles.helpText}>
+              CSSコードを入力すると、設定したカテゴリのCSSファイルに自動的に追加されます。コンポーネント特有のIDでスコープ化されるため、他のCSSと競合しません。
+            </p>
+            <textarea
+              style={styles.codeTextarea}
+              value={customCssCode}
+              onChange={(e) => setCustomCssCode(e.target.value)}
+              placeholder={`例：
+.my-custom-class {
+  color: #333;
+  font-size: 16px;
+}
+
+.my-button {
+  background-color: #3b82f6;
+  padding: 12px 24px;
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .my-custom-class {
+    font-size: 14px;
+  }
+}`}
+              rows={8}
+            />
+          </div>
+
           {/* リアルタイムプレビュー */}
           {htmlCode && (
             <div style={{ marginTop: '24px' }}>
@@ -2162,6 +2445,26 @@ Unique ID: ${metadata.uniqueId}
                     htmlCode={htmlCode}
                     props={computedPreviewProps}
                     cssFiles={cssFiles}
+                    customCssCode={customCssCode}
+                    sectionId={(() => {
+                      // プレビュー用のsectionIdを計算
+                      if (componentName && (isNewCategory ? newCategoryName : category)) {
+                        try {
+                          const finalCategory = isNewCategory ? newCategoryName.trim() : category;
+                          const finalCategoryRomanized = isNewCategory ? newCategoryRomanized.trim() : categoryRomanized;
+                          const metadata = generateComponentMetadata(
+                            finalCategory,
+                            finalCategoryRomanized,
+                            componentName
+                          );
+                          return metadata.sectionId;
+                        } catch (error) {
+                          console.warn('Failed to generate sectionId for preview:', error);
+                          return undefined;
+                        }
+                      }
+                      return undefined;
+                    })()}
                     globalStyles={pageData.globalStyles}
                   />
                 </div>
@@ -2946,73 +3249,6 @@ Unique ID: ${metadata.uniqueId}
             </pre>
 
             <div style={styles.saveSection}>
-              {/* バージョン管理オプション */}
-              {supabase && (
-                <div style={{
-                  marginBottom: '16px',
-                  padding: '16px',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '12px',
-                  }}>
-                    <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#374151', margin: 0 }}>
-                      <History size={16} style={{ marginRight: '6px', display: 'inline', verticalAlign: 'middle' }} />
-                      バージョン管理
-                    </h4>
-                    {componentName && (
-                      <button
-                        onClick={() => {
-                          const metadata = generateComponentMetadata(
-                            isNewCategory ? newCategoryName : category,
-                            isNewCategory ? newCategoryRomanized : categoryRomanized,
-                            componentName
-                          );
-                          loadVersionHistory(metadata.uniqueId);
-                        }}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: '#f3f4f6',
-                          color: '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        履歴を表示
-                      </button>
-                    )}
-                  </div>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    color: '#374151',
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={saveAsDraft}
-                      onChange={(e) => setSaveAsDraft(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
-                    />
-                    <span>ドラフト版として保存（後でリリース版に変更可能）</span>
-                  </label>
-                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px', marginBottom: 0 }}>
-                    {saveAsDraft
-                      ? 'ドラフト版として保存すると、開発中のテスト用に使用します。リリース版に変更すると、他のユーザーが使用できるようになります'
-                      : 'リリース版として保存すると、すぐにコンポーネントライブラリで使用可能になります'}
-                  </p>
-                </div>
-              )}
-
               <button
                 style={{ ...styles.saveButton, ...(isSaved ? styles.savedButton : {}) }}
                 onClick={saveComponentAndCreateFiles}
@@ -3031,9 +3267,7 @@ Unique ID: ${metadata.uniqueId}
                 )}
               </button>
               <p style={styles.saveHint}>
-                {supabase && saveAsDraft
-                  ? 'ドラフト版として保存されます。後でリリース版に変更できます'
-                  : '追加後、コンポーネントライブラリに表示されます'}
+                追加後、コンポーネントライブラリに表示されます
               </p>
             </div>
           </div>

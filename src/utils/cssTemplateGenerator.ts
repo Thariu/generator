@@ -1,4 +1,6 @@
 // CSS template generator for new categories
+import { ComponentData } from '../types';
+import { getComponentTemplates } from './componentTemplateStorage';
 
 export const generateCSSTemplate = (category: string, cssFileName: string): string => {
   const sectionId = cssFileName.replace('.css', 'Area');
@@ -230,4 +232,150 @@ export const getCSSMetadata = (): CSSFileMetadata[] => {
 export const isCSSGenerated = (category: string): boolean => {
   const metadata = getCSSMetadata();
   return metadata.some(m => m.category === category && m.generated);
+};
+
+/**
+ * CSSコードをコンポーネント特有のIDでスコープ化する
+ * @param cssCode 元のCSSコード
+ * @param sectionId コンポーネントのセクションID（例: "kvArea"）
+ * @returns スコープ化されたCSSコード
+ */
+export const scopeCSSWithSectionId = (cssCode: string, sectionId: string): string => {
+  if (!cssCode || !cssCode.trim()) {
+    return '';
+  }
+
+  // コメントと空行を保持しながら、CSSルールをスコープ化
+  const lines = cssCode.split('\n');
+  const scopedLines: string[] = [];
+  let inMediaQuery = false;
+  let mediaQueryIndent = '';
+  let braceCount = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // 空行やコメントはそのまま保持
+    if (!trimmed || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('//')) {
+      scopedLines.push(line);
+      continue;
+    }
+
+    // @mediaクエリの開始を検出
+    if (trimmed.startsWith('@media')) {
+      inMediaQuery = true;
+      mediaQueryIndent = line.match(/^(\s*)/)?.[1] || '';
+      scopedLines.push(line);
+      continue;
+    }
+
+    // @keyframes、@import、@charsetなどはそのまま保持
+    if (trimmed.startsWith('@keyframes') || 
+        trimmed.startsWith('@import') || 
+        trimmed.startsWith('@charset') ||
+        trimmed.startsWith('@supports') ||
+        trimmed.startsWith('@page')) {
+      scopedLines.push(line);
+      continue;
+    }
+
+    // ブレースのカウント
+    braceCount += (line.match(/{/g) || []).length;
+    braceCount -= (line.match(/}/g) || []).length;
+
+    // @mediaクエリの終了を検出
+    if (inMediaQuery && trimmed === '}') {
+      inMediaQuery = false;
+      scopedLines.push(line);
+      continue;
+    }
+
+    // セレクタ行（{の前）をスコープ化
+    if (trimmed.includes('{') && !trimmed.startsWith('@')) {
+      const indent = line.match(/^(\s*)/)?.[1] || '';
+      const selectorPart = trimmed.split('{')[0].trim();
+      
+      // セレクタが既に#sectionIdで始まっている場合はスキップ
+      if (selectorPart.startsWith(`#${sectionId}`)) {
+        scopedLines.push(line);
+        continue;
+      }
+
+      // セレクタをスコープ化
+      // カンマ区切りのセレクタリストに対応
+      const selectors = selectorPart.split(',').map(s => s.trim());
+      const scopedSelectors = selectors.map(selector => {
+        // 既にスコープ化されている場合はスキップ
+        if (selector.startsWith(`#${sectionId}`)) {
+          return selector;
+        }
+        // 疑似クラスや疑似要素がある場合の処理
+        const pseudoMatch = selector.match(/^(.+?)(::?[a-z-]+(?:\([^)]*\))?)$/i);
+        if (pseudoMatch) {
+          return `#${sectionId} ${pseudoMatch[1]}${pseudoMatch[2]}`;
+        }
+        // 通常のセレクタ
+        return `#${sectionId} ${selector}`;
+      });
+
+      const scopedSelector = scopedSelectors.join(', ');
+      const restOfLine = line.substring(line.indexOf('{'));
+      scopedLines.push(`${indent}${scopedSelector}${restOfLine}`);
+    } else {
+      scopedLines.push(line);
+    }
+  }
+
+  return scopedLines.join('\n');
+};
+
+/**
+ * コンポーネントタイプからカスタムテンプレートを取得
+ */
+const getCustomTemplateByType = (type: string) => {
+  const customTemplates = getComponentTemplates();
+  return customTemplates.find(t => t.name === type || t.uniqueId === type) || null;
+};
+
+/**
+ * コンポーネントのカスタムCSSをカテゴリごとに収集
+ * @param components コンポーネントのリスト
+ * @returns カテゴリごとのカスタムCSS（カテゴリ名 -> CSSコードのマップ）
+ */
+export const collectCustomCSSByCategory = (components: ComponentData[]): Map<string, string> => {
+  const cssByCategory = new Map<string, string>();
+
+  components.forEach(component => {
+    const customTemplate = getCustomTemplateByType(component.type);
+    if (customTemplate && customTemplate.customCssCode && customTemplate.customCssCode.trim()) {
+      const category = customTemplate.category;
+      const scopedCss = scopeCSSWithSectionId(customTemplate.customCssCode, customTemplate.sectionId);
+      
+      if (cssByCategory.has(category)) {
+        // 既存のCSSに追加（重複を避けるため、改行で区切る）
+        const existing = cssByCategory.get(category)!;
+        cssByCategory.set(category, `${existing}\n\n/* ${customTemplate.displayName || customTemplate.name} のカスタムCSS */\n${scopedCss}`);
+      } else {
+        cssByCategory.set(category, `/* ${customTemplate.displayName || customTemplate.name} のカスタムCSS */\n${scopedCss}`);
+      }
+    }
+  });
+
+  return cssByCategory;
+};
+
+/**
+ * CSSファイルの内容にカスタムCSSを追加
+ * @param baseCSS ベースとなるCSSコード
+ * @param customCSS 追加するカスタムCSSコード
+ * @returns 結合されたCSSコード
+ */
+export const appendCustomCSSToFile = (baseCSS: string, customCSS: string): string => {
+  if (!customCSS || !customCSS.trim()) {
+    return baseCSS;
+  }
+  
+  // ベースCSSの末尾にカスタムCSSを追加
+  return `${baseCSS}\n\n/* ======================================== */\n/* カスタムCSS */\n/* ======================================== */\n\n${customCSS}`;
 };

@@ -19,6 +19,7 @@ export interface ComponentTemplateData {
   styleSchema?: any[];
   cssFiles: string[];
   jsFiles: string[];
+  customCssCode?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -90,6 +91,33 @@ export const deleteComponentTemplate = (id: string): void => {
   saveComponentTemplates(filtered);
 };
 
+/**
+ * componentTemplates.tsに存在するコンポーネントと重複するlocalStorageのデータを削除
+ */
+export const removeDuplicateTemplates = (componentTemplatesFromFile: Array<{ id?: string; uniqueId?: string }>): number => {
+  const templates = getComponentTemplates();
+  const fileIds = new Set<string>();
+  
+  // componentTemplates.tsのidとuniqueIdを収集
+  componentTemplatesFromFile.forEach(t => {
+    if (t.id) fileIds.add(t.id);
+    if (t.uniqueId) fileIds.add(t.uniqueId);
+  });
+  
+  // 重複するテンプレートをフィルタリング
+  const filtered = templates.filter(t => {
+    return !fileIds.has(t.id) && !(t.uniqueId && fileIds.has(t.uniqueId));
+  });
+  
+  const removedCount = templates.length - filtered.length;
+  
+  if (removedCount > 0) {
+    saveComponentTemplates(filtered);
+  }
+  
+  return removedCount;
+};
+
 export const getComponentTemplateByName = (name: string): ComponentTemplateData | undefined => {
   const templates = getComponentTemplates();
   return templates.find(t => t.name === name);
@@ -142,6 +170,7 @@ export const getComponentTemplatesFromSupabase = async (): Promise<ComponentTemp
       styleSchema: item.style_schema || [],
       cssFiles: item.css_files || [],
       jsFiles: item.js_files || [],
+      customCssCode: item.custom_css_code,
       isActive: item.is_active !== false,
       version: item.version || 1,
       isDraft: item.is_draft || false,
@@ -198,6 +227,7 @@ export const saveComponentTemplateToSupabase = async (
         style_schema: template.styleSchema || [],
         css_files: template.cssFiles,
         js_files: template.jsFiles,
+        custom_css_code: template.customCssCode,
         is_active: template.isActive !== false,
         is_draft: isDraft,
         version: nextVersion,
@@ -331,6 +361,7 @@ export const getComponentTemplateByVersion = async (
       styleSchema: data.style_schema || [],
       cssFiles: data.css_files || [],
       jsFiles: data.js_files || [],
+      customCssCode: data.custom_css_code,
       isActive: data.is_active !== false,
       version: data.version || 1,
       isDraft: data.is_draft || false,

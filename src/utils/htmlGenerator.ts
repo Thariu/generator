@@ -2,6 +2,7 @@
 import { ComponentData, PageData } from '../types';
 import { getGlobalStyleValue } from './globalStylesHelper';
 import { componentTemplates } from '../data/componentTemplates';
+import { getComponentTemplates } from './componentTemplateStorage';
 
 // カテゴリ名からCSSファイル名を生成
 const generateCSSFileName = (category: string): string => {
@@ -35,7 +36,13 @@ const getCSSFileNameForCategory = (category: string): string => {
 // コンポーネントタイプからカテゴリを取得
 export const getCategoryFromComponentType = (type: string): string | null => {
   const template = componentTemplates.find(t => t.type === type);
-  return template?.category || null;
+  if (template) {
+    return template.category;
+  }
+  // カスタムテンプレートも確認
+  const customTemplates = getComponentTemplates();
+  const customTemplate = customTemplates.find(t => t.name === type || t.uniqueId === type);
+  return customTemplate?.category || null;
 };
 
 // 使用されているコンポーネントからCSSファイルのリストを生成

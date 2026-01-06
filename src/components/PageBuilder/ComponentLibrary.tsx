@@ -3,7 +3,7 @@ import { Plus, Search, RefreshCw } from 'lucide-react';
 import { ComponentTemplate } from '../../types';
 import { componentTemplates } from '../../data/componentTemplates';
 import { usePageStore } from '../../store/usePageStore';
-import { getComponentTemplates } from '../../utils/componentTemplateStorage';
+import { getComponentTemplates, removeDuplicateTemplates } from '../../utils/componentTemplateStorage';
 import ComponentBuilder from './ComponentBuilder';
 
 const ComponentLibrary: React.FC = () => {
@@ -18,12 +18,42 @@ const ComponentLibrary: React.FC = () => {
   const SECRET_KEY = 'mode_admin';
   // 「番組配信」「UI要素」「メディア」「お問い合わせ」カテゴリのコンポーネントを除外
   const excludedCategories = ['番組配信', 'UI要素', 'メディア', 'お問い合わせ'];
-  const allTemplates = [...componentTemplates, ...customTemplates].filter(
+  
+  // 重複を排除（componentTemplates.tsに存在するものは除外）
+  const uniqueTemplates = React.useMemo(() => {
+    // componentTemplates.tsのuniqueIdとidのセットを作成
+    const componentTemplateIds = new Set<string>();
+    componentTemplates.forEach(t => {
+      if (t.uniqueId) componentTemplateIds.add(t.uniqueId);
+      if (t.id) componentTemplateIds.add(t.id);
+    });
+    
+    // localStorageのテンプレートから、componentTemplates.tsに存在するものを除外
+    const filteredCustomTemplates = customTemplates.filter(template => {
+      // idとuniqueIdの両方をチェック
+      return !componentTemplateIds.has(template.id) && 
+             !(template.uniqueId && componentTemplateIds.has(template.uniqueId));
+    });
+    
+    return [...componentTemplates, ...filteredCustomTemplates];
+  }, [componentTemplates, customTemplates]);
+  
+  const allTemplates = uniqueTemplates.filter(
     template => !excludedCategories.includes(template.category)
   );
   const categories = ['All', ...Array.from(new Set(allTemplates.map(t => t.category)))];
 
   useEffect(() => {
+    // 初回読み込み時に重複データを削除
+    try {
+      const removedCount = removeDuplicateTemplates(componentTemplates);
+      if (removedCount > 0) {
+        console.log(`重複するコンポーネント ${removedCount} 件をlocalStorageから削除しました`);
+      }
+    } catch (error) {
+      console.error('重複データの削除に失敗しました:', error);
+    }
+    
     loadCustomTemplates();
   }, []);
 
@@ -96,7 +126,8 @@ const ComponentLibrary: React.FC = () => {
       id: `${template.type}-${Date.now()}`,
       type: template.type,
       props: { ...template.defaultProps },
-      style: { theme: 'light', colorScheme: 'blue' as const },
+      style: { theme: 'light' as const, colorScheme: 'blue' as const },
+      templateId: template.id, // テンプレートIDを保存（同じカテゴリ内の複数コンポーネントを区別するため）
     };
     addComponent(newComponent);
   };

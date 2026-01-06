@@ -1,24 +1,97 @@
 import React, { useEffect, useRef } from 'react';
 import { ComponentData } from '../../types';
 import { usePageStore } from '../../store/usePageStore';
-import KVComponent from '../Components/KVComponent';
-import FAQComponent from '../Components/FAQComponent';
-import FooterComponent from '../Components/FooterComponent';
-import PricingComponent from '../Components/PricingComponent';
-import AppIntroComponent from '../Components/AppIntroComponent';
-import HeadlineComponent from '../Components/HeadlineComponent';
-import TabComponent from '../Components/TabComponent';
-import ModalComponent from '../Components/ModalComponent';
-import SliderComponent from '../Components/SliderComponent';
-import TelComponent from '../Components/tel';
+import { componentTemplates } from '../../data/componentTemplates';
+import { getComponentTemplates } from '../../utils/componentTemplateStorage';
 
 interface ComponentRendererProps {
   component: ComponentData;
 }
 
+// グローバルに読み込まれたCSSファイルを追跡（重複読み込みを防ぐ）
+const loadedCssFiles = new Set<string>();
+
+// コンポーネント名からコンポーネントを取得するマッピングオブジェクト
+// 動的インポートで対応するコンポーネントを自動解決するために使用
+// import.meta.globを使用してComponentsディレクトリ内のすべてのコンポーネントを自動的にインポート
+const componentModules = import.meta.glob('../Components/*.tsx', { 
+  eager: true,
+  import: 'default'
+}) as Record<string, React.ComponentType<any>>;
+
+// ファイル名からコンポーネント名を推測してcomponentMapを自動構築
+const componentMap: Record<string, React.ComponentType<any>> = {};
+
+Object.keys(componentModules).forEach((path) => {
+  try {
+    // パスからファイル名を取得（例：../Components/Test10CComponent.tsx -> Test10CComponent.tsx）
+    const fileName = path.split('/').pop() || '';
+    // ファイル名から拡張子を除去（例：Test10CComponent.tsx -> Test10CComponent）
+    const componentName = fileName.replace(/\.tsx$/, '');
+    
+    // コンポーネント名が有効な場合（空文字列でない場合）のみマッピングに追加
+    if (componentName && componentModules[path]) {
+      componentMap[componentName] = componentModules[path];
+    }
+  } catch (error) {
+    console.warn(`Failed to load component from ${path}:`, error);
+  }
+});
+
+// デバッグ用：読み込まれたコンポーネントを確認
+console.log('Loaded components:', Object.keys(componentMap));
+
 const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
   const { showClassNames } = usePageStore();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // コンポーネントのテンプレート情報を取得してCSSファイルを読み込む
+  useEffect(() => {
+    if (!component || !component.type) {
+      return;
+    }
+
+    try {
+      // componentTemplates.tsから取得
+      const template = componentTemplates.find(t => t.type === component.type);
+      
+      // localStorageからも取得（カスタムテンプレート）
+      const customTemplates = getComponentTemplates();
+      const customTemplate = customTemplates.find(t => {
+        const templateType = t.name.replace('Component', '').toLowerCase();
+        return templateType === component.type;
+      });
+
+      // cssFilesを取得（componentTemplates.tsを優先、型定義にcssFilesがない場合はanyでキャスト）
+      const cssFiles = (template as any)?.cssFiles || customTemplate?.cssFiles || [];
+
+      // CSSファイルを動的に読み込む
+      cssFiles.forEach((cssFile: string) => {
+        if (!cssFile || loadedCssFiles.has(cssFile)) {
+          return; // 既に読み込まれている場合はスキップ
+        }
+
+        // 既に同じCSSファイルが読み込まれているかチェック
+        const existingLink = document.head.querySelector(
+          `link[href="/program/st/promo/generator_common/css/${cssFile}"]`
+        );
+        
+        if (existingLink) {
+          loadedCssFiles.add(cssFile);
+          return;
+        }
+
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `/program/st/promo/generator_common/css/${cssFile}`;
+        link.setAttribute('data-component-css', component.id);
+        document.head.appendChild(link);
+        loadedCssFiles.add(cssFile);
+      });
+    } catch (error) {
+      console.error('CSSファイルの読み込みに失敗しました:', error);
+    }
+  }, [component?.type, component?.id]);
 
   const commonProps = {
     component,
@@ -90,39 +163,90 @@ const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
     };
   }, [showClassNames]);
 
-  const renderComponent = () => {
-    switch (component.type) {
-      case 'kv':
-        return <KVComponent {...commonProps} />;
-      case 'headline':
-        return <HeadlineComponent {...commonProps} />;
-      case 'test':
-        return <FAQComponent {...commonProps} />;
-      case 'footer':
-        return <FooterComponent {...commonProps} />;
-      case 'pricing':
-        return <PricingComponent {...commonProps} />;
-      case 'app-intro':
-        return <AppIntroComponent {...commonProps} />;
-      case 'tab':
-        return <TabComponent {...commonProps} />;
-      case 'modal':
-        return <ModalComponent {...commonProps} />;
-      case 'slider':
-        return <SliderComponent {...commonProps} />;
-      case 'tel':
-        return <TelComponent {...commonProps} />;
-      default:
-        return (
-          <div className="p-8 bg-gray-100 text-center">
-            <p className="text-gray-500">Unknown component type: {component.type}</p>
-            <p className="text-xs text-gray-400 mt-2">
-              Component type &quot;{component.type}&quot; is not registered in ComponentRenderer.
-              Please add it to the switch statement.
-            </p>
-          </div>
-        );
+  // uniqueIdからコンポーネント名を推測する関数
+  const getComponentNameFromUniqueId = (uniqueId: string): string => {
+    // uniqueIdの形式: {categoryRomanized}_{componentNameRomanized}
+    // 例: test10_btn -> Test10BtnComponent, test10_a -> Test10AComponent
+    const parts = uniqueId.split('_');
+    if (parts.length < 2) {
+      return '';
     }
+    
+    // カテゴリ部分とコンポーネント名部分を取得
+    const componentNamePart = parts.slice(1).join('_'); // 複数のアンダースコアに対応
+    
+    // コンポーネント名をパスカルケースに変換
+    const componentName = componentNamePart
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join('');
+    
+    // カテゴリ名もパスカルケースに変換
+    const categoryPart = parts[0];
+    const categoryName = categoryPart
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join('');
+    
+    return `${categoryName}${componentName}Component`;
+  };
+
+  const renderComponent = () => {
+    // templateIdに基づいて適切なコンポーネントを判定（同じカテゴリ内の複数コンポーネント対応）
+    if (component.templateId) {
+      let componentName: string | null = null;
+      
+      // componentTemplates.tsから該当するテンプレートを取得
+      const template = componentTemplates.find(t => t.id === component.templateId || t.uniqueId === component.templateId);
+      
+      if (template) {
+        // uniqueIdからコンポーネント名を推測
+        const uniqueId = template.uniqueId || template.id;
+        componentName = getComponentNameFromUniqueId(uniqueId);
+      } else {
+        // テンプレートが見つからない場合（コンポーネント作成直後など）、templateIdを直接uniqueIdとして使用
+        // templateIdがuniqueId形式（例：test10_b）の場合、直接コンポーネント名を推測
+        componentName = getComponentNameFromUniqueId(component.templateId);
+      }
+      
+      // コンポーネント名から動的にコンポーネントを取得
+      if (componentName && componentMap[componentName]) {
+        const DynamicComponent = componentMap[componentName];
+        return <DynamicComponent {...commonProps} />;
+      }
+    }
+
+    // templateIdがない場合、または該当するコンポーネントが見つからない場合は従来のswitch文を使用
+    // コンポーネントタイプからコンポーネント名へのマッピング
+    const typeToComponentNameMap: Record<string, string> = {
+      'kv': 'KVComponent',
+      'headline': 'HeadlineComponent',
+      'test': 'FAQComponent',
+      'footer': 'FooterComponent',
+      'pricing': 'PricingComponent',
+      'app-intro': 'AppIntroComponent',
+      'tab': 'TabComponent',
+      'modal': 'ModalComponent',
+      'slider': 'SliderComponent',
+      'tel': 'tel', // tel.tsxのファイル名に合わせる
+    };
+
+    const componentName = typeToComponentNameMap[component.type];
+    if (componentName && componentMap[componentName]) {
+      const DynamicComponent = componentMap[componentName];
+      return <DynamicComponent {...commonProps} />;
+    }
+
+    // 該当するコンポーネントが見つからない場合
+    return (
+      <div className="p-8 bg-gray-100 text-center">
+        <p className="text-gray-500">Unknown component type: {component.type}</p>
+        <p className="text-xs text-gray-400 mt-2">
+          Component type &quot;{component.type}&quot; is not registered in ComponentRenderer.
+          Please add it to the switch statement.
+        </p>
+      </div>
+    );
   };
 
   return (

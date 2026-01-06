@@ -67,39 +67,6 @@ const Header: React.FC = () => {
               }
 
 
-
-
-
-
-
-              #addArea {
-                padding: 60px 0 100px 0;
-              }
-              #addArea .flexWrapper {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                gap: 40px;
-              }
-              #addArea .flexWrapper .c-btn a {
-                min-width: 360px;
-                width: 100%;
-                min-height: 72px;
-                margin: 0 auto;
-                font-size: 18px;
-                line-height: 1.5;
-                padding: 25px 35px 25px 25px;
-              }
-              .fw .c-btn--red a:after, .fw .c-btn--red button:after {
-                right: 20px;
-              }
-              .fw .c-btn--blank.c-btn--blue a:after, .fw .c-btn--blank.c-btn--blue button:after {
-                margin-left: 8px;
-                width: 30px;
-                height: 30px;
-              }
-
-
               #programArea {
                 padding: 80px 0 120px 0;
               }
@@ -477,46 +444,6 @@ const Header: React.FC = () => {
                 -ms-transform: translate(-50%, -50%) rotate(0deg);
                 transform: translate(-50%, -50%) rotate(0deg);
               }
-
-
-
-
-              #addArea {
-                padding: 13.33vw 0 16vw 0;
-              }
-              #addArea .flexWrapper {
-                padding: 0 5.33vw;
-              }
-              #addArea .flexWrapper .c-btn a {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                max-width: none;
-                width: 100%;
-                height: 16vw;
-                margin: 0 auto;
-                font-size: 4.26vw;
-                line-height: 1;
-                padding: 0;
-              }
-              #addArea .flexWrapper .c-btn:not(:last-child) {
-                margin-bottom: 8vw;
-              }
-              .fw .flexWrapper .c-btn--red a:after, .fw .flexWrapper .c-btn--red button:after {
-                border-radius: 100%;
-                background: #fff url(/global/assets/images/icon/icon_arrow-a_red.svg) no-repeat center center;
-                background-size: 100%;
-                width: 5.33vw;
-                height: 5.33vw;
-                right: 4vw;
-              }
-              .fw .flexWrapper .c-btn--blank.c-btn--blue a:after, .fw .flexWrapper .c-btn--blank.c-btn--blue button:after {
-                background: url(/global/assets/images/icon/icon_blank_white.svg) no-repeat center center;
-                background-size: 100% auto;
-                width: 7.06vw;
-                height: 7.06vw;
-                right: -2.13vw!important;
-            }
 
 
 

@@ -3,6 +3,7 @@ export interface ComponentData {
   type: ComponentType;
   props: Record<string, any>;
   style?: ComponentStyle;
+  templateId?: string; // テンプレートID（同じカテゴリ内の複数コンポーネントを区別するため）
 }
 
 export type ComponentType =
@@ -16,7 +17,14 @@ export type ComponentType =
   | 'app-intro'
   | 'tab'
   | 'modal'
-  | 'slider';
+  | 'slider'
+
+
+
+
+
+
+  | 'tel';
 
 export interface ComponentStyle {
   theme?: 'light' | 'dark';
@@ -89,6 +97,9 @@ export interface ComponentTemplate {
   categoryRomanized?: string; // カテゴリ名のローマ字表記（オプション）
   defaultProps: Record<string, any>;
   uniqueId?: string; // 自動生成される一意のID（カテゴリ_コンポーネント）
+  cssFiles?: string[]; // CSSファイルのリスト
+  jsFiles?: string[]; // JSファイルのリスト
+  sectionId?: string; // セクションID
 }
 
 export interface DesignPattern {
