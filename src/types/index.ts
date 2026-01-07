@@ -117,6 +117,7 @@ export interface SavedProject {
   pageData: PageData;
   createdAt: string;
   updatedAt: string;
+  order?: number; // カテゴリ内での表示順序
 }
 
 export interface ProjectMetadata {

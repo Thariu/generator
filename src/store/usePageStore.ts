@@ -35,6 +35,8 @@ interface PageStore {
   saveProject: (name: string, category: string) => void;
   loadProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
+  duplicateProject: (projectId: string) => void;
+  reorderProjects: (category: string, oldIndex: number, newIndex: number) => void;
   getSavedProjects: () => SavedProject[];
   getCurrentProjectName: () => string | null;
   setCurrentProjectName: (name: string | null) => void;
@@ -269,6 +271,76 @@ export const usePageStore = create<PageStore>((set, get) => ({
       set({ currentProjectName: null });
       localStorage.removeItem(CURRENT_PROJECT_KEY);
     }
+  },
+
+  duplicateProject: (projectId) => {
+    const projects = getSharedProjects();
+    const projectToDuplicate = projects.find(p => p.id === projectId);
+    if (!projectToDuplicate) return;
+
+    // 複製名を生成（重複チェック）
+    const baseName = `${projectToDuplicate.name} (コピー)`;
+    let newName = baseName;
+    let counter = 1;
+    
+    while (projects.some(p => p.name === newName)) {
+      counter++;
+      newName = `${projectToDuplicate.name} (コピー ${counter})`;
+    }
+
+    // カテゴリ内の最大orderを取得して+1
+    const category = projectToDuplicate.category || '未分類';
+    const categoryProjects = projects.filter(p => (p.category || '未分類') === category);
+    const maxOrder = categoryProjects.length > 0 
+      ? Math.max(...categoryProjects.map(p => p.order || 0))
+      : -1;
+
+    const now = new Date().toISOString();
+    const duplicatedProject: SavedProject = {
+      id: `project-${Date.now()}`,
+      name: newName,
+      category,
+      pageData: JSON.parse(JSON.stringify(projectToDuplicate.pageData)), // ディープコピー
+      createdAt: now,
+      updatedAt: now,
+      order: maxOrder + 1
+    };
+
+    const updatedProjects = [...projects, duplicatedProject];
+    saveSharedProjects(updatedProjects);
+  },
+
+  reorderProjects: (category, oldIndex, newIndex) => {
+    const projects = getSharedProjects();
+    const categoryKey = category || '未分類';
+    const categoryProjects = projects
+      .filter(p => (p.category || '未分類') === categoryKey)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    if (oldIndex === newIndex || oldIndex < 0 || newIndex < 0 || 
+        oldIndex >= categoryProjects.length || newIndex >= categoryProjects.length) {
+      return;
+    }
+
+    // 配列の並び替え
+    const [movedProject] = categoryProjects.splice(oldIndex, 1);
+    categoryProjects.splice(newIndex, 0, movedProject);
+
+    // orderを再設定
+    categoryProjects.forEach((project, index) => {
+      project.order = index;
+    });
+
+    // 全プロジェクトを更新
+    const updatedProjects = projects.map(p => {
+      if ((p.category || '未分類') === categoryKey) {
+        const updated = categoryProjects.find(cp => cp.id === p.id);
+        return updated || p;
+      }
+      return p;
+    });
+
+    saveSharedProjects(updatedProjects);
   },
   
   getSavedProjects: getSharedProjects,

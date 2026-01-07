@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Save, FolderOpen, Trash2, Calendar, FileText, Tag, ChevronDown, ArchiveRestore } from 'lucide-react';
+import { X, Save, FolderOpen, Trash2, Calendar, FileText, Tag, ChevronDown, ArchiveRestore, Copy, GripVertical } from 'lucide-react';
+import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { usePageStore } from '../../store/usePageStore';
 import { SavedProject } from '../../types';
 
@@ -13,6 +16,8 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
     saveProject, 
     loadProject, 
     deleteProject, 
+    duplicateProject,
+    reorderProjects,
     getSavedProjects, 
     getCurrentProjectName,
     restoreFromBackup 
@@ -33,6 +38,19 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
       return acc;
     }, {});
   }, [savedProjects]);
+
+  // カテゴリごとにソート（order順）
+  const sortedProjectsByCategory = useMemo(() => {
+    const sorted: Record<string, SavedProject[]> = {};
+    Object.keys(projectsByCategory).forEach(cat => {
+      sorted[cat] = [...projectsByCategory[cat]].sort((a, b) => {
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
+        return orderA - orderB;
+      });
+    });
+    return sorted;
+  }, [projectsByCategory]);
 
   useEffect(() => {
     if (isOpen) {
@@ -61,6 +79,44 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleSaveAsNew = () => {
+    const finalCategory = category.trim() || '未分類';
+    if (projectName.trim()) {
+      // 新規プロジェクトとして保存（既存の同名プロジェクトがあっても新規作成）
+      const projects = getSavedProjects();
+      const baseName = projectName.trim();
+      let newName = baseName;
+      let counter = 1;
+      
+      // 同名のプロジェクトが存在する場合、番号を付ける
+      while (projects.some(p => p.name === newName)) {
+        counter++;
+        newName = `${baseName} ${counter}`;
+      }
+      
+      // プロジェクト名を更新して保存
+      setProjectName(newName);
+      saveProject(newName, finalCategory);
+      setSavedProjects(getSavedProjects());
+      setShowSaveForm(false);
+      setExpandedCategories(prev => new Set(prev).add(finalCategory));
+    }
+  };
+
+  const handleSaveOverwrite = () => {
+    const finalCategory = category.trim() || '未分類';
+    if (projectName.trim()) {
+      // 確認ダイアログを表示
+      if (confirm(`プロジェクト「${projectName.trim()}」を上書き保存しますか？\n既存のデータが置き換えられます。`)) {
+        // 既存プロジェクトを上書き保存
+        saveProject(projectName.trim(), finalCategory);
+        setSavedProjects(getSavedProjects());
+        setShowSaveForm(false);
+        setExpandedCategories(prev => new Set(prev).add(finalCategory));
+      }
+    }
+  };
+
   const handleRestore = () => {
     if (restoreFromBackup()) {
       onClose();
@@ -81,9 +137,126 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
       setSavedProjects(getSavedProjects());
     }
   };
+
+  const handleDuplicate = (projectId: string) => {
+    const originalProject = savedProjects.find(p => p.id === projectId);
+    if (!originalProject) return;
+    
+    if (confirm(`プロジェクト「${originalProject.name}」を複製しますか？`)) {
+      duplicateProject(projectId);
+      const updatedProjects = getSavedProjects();
+      setSavedProjects(updatedProjects);
+      
+      // 複製されたプロジェクトのカテゴリを展開
+      const category = originalProject.category || '未分類';
+      setExpandedCategories(prev => new Set(prev).add(category));
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent, category: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const categoryProjects = sortedProjectsByCategory[category] || [];
+    const oldIndex = categoryProjects.findIndex(p => p.id === active.id);
+    const newIndex = categoryProjects.findIndex(p => p.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      reorderProjects(category, oldIndex, newIndex);
+      setSavedProjects(getSavedProjects());
+    }
+  };
   const toggleCategory = (cat: string) => setExpandedCategories(prev => { const newSet = new Set(prev); if (newSet.has(cat)) newSet.delete(cat); else newSet.add(cat); return newSet; });
   const formatDate = (date: string) => new Date(date).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const getProjectDescription = (p: SavedProject) => `${p.pageData.components.length}個のコンポーネント • ${p.pageData.globalSettings.title}`;
+
+  // SortableProjectCardコンポーネント
+  interface SortableProjectCardProps {
+    project: SavedProject;
+    onLoad: (projectId: string) => void;
+    onDelete: (projectId: string) => void;
+    onDuplicate: (projectId: string) => void;
+  }
+
+  const SortableProjectCard: React.FC<SortableProjectCardProps> = ({ project, onLoad, onDelete, onDuplicate }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: project.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <div 
+        ref={setNodeRef} 
+        style={{ ...projectCardStyle, ...style }}
+        onClick={() => onLoad(project.id)}
+      >
+        <div style={projectHeaderStyle}>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <div 
+                {...attributes} 
+                {...listeners}
+                style={{ 
+                  cursor: 'grab',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  color: '#6b7280',
+                  transition: 'background-color 0.15s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <GripVertical size={16} />
+              </div>
+              <h3 style={projectTitleStyle}>{project.name}</h3>
+            </div>
+            <p style={{...projectDescStyle, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getProjectDescription(project)}</p>
+            <div style={projectMetaStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /><span>更新: {formatDate(project.updatedAt)}</span></div>
+            </div>
+          </div>
+          <div style={projectActionsStyle}>
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onDuplicate(project.id); 
+              }} 
+              style={iconButtonStyle}
+              title="プロジェクトを複製"
+            >
+              <Copy size={16} color="#2563eb" />
+            </button>
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onDelete(project.id); 
+              }} 
+              style={iconButtonStyle}
+              title="プロジェクトを削除"
+            >
+              <Trash2 size={16} color="#dc2626" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -127,7 +300,7 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
         <div style={contentStyle}>
           <div style={actionBarStyle}>
             <div style={currentProjectStyle}><FileText size={16} /><span>現在のプロジェクト: {getCurrentProjectName() || '未保存'}</span></div>
-            <button onClick={() => setShowSaveForm(!showSaveForm)} style={primaryButtonStyle}><Save size={16} />{getCurrentProjectName() ? '上書き保存' : 'プロジェクトを保存'}</button>
+            <button onClick={() => setShowSaveForm(!showSaveForm)} style={primaryButtonStyle}><Save size={16} />プロジェクトを保存</button>
           </div>
           {showSaveForm && (
             <div style={saveFormStyle}>
@@ -136,9 +309,24 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
                 <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="カテゴリ名（例：テンプレート）" style={inputStyle} list="category-suggestions" />
                 <datalist id="category-suggestions">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
                 <button onClick={() => setShowSaveForm(false)} style={secondaryButtonStyle}>キャンセル</button>
-                <button onClick={handleSave} disabled={!projectName.trim()} style={{ ...primaryButtonStyle, opacity: projectName.trim() ? 1 : 0.5 }}>保存</button>
+                {getCurrentProjectName() && (
+                  <button 
+                    onClick={handleSaveOverwrite} 
+                    disabled={!projectName.trim()} 
+                    style={{ ...primaryButtonStyle, opacity: projectName.trim() ? 1 : 0.5, backgroundColor: '#dc2626' }}
+                  >
+                    上書き保存
+                  </button>
+                )}
+                <button 
+                  onClick={handleSaveAsNew} 
+                  disabled={!projectName.trim()} 
+                  style={{ ...primaryButtonStyle, opacity: projectName.trim() ? 1 : 0.5 }}
+                >
+                  {getCurrentProjectName() ? '新規プロジェクトとして保存' : '保存'}
+                </button>
               </div>
             </div>
           )}
@@ -151,31 +339,34 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
             </div>
           ) : (
             <div style={projectListContainerStyle}>
-              {Object.keys(projectsByCategory).sort().map(cat => (
+              {Object.keys(sortedProjectsByCategory).sort().map(cat => (
                 <div key={cat}>
                   <div onClick={() => toggleCategory(cat)} style={categoryHeaderStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={16} color="#4b5563"/>{cat} ({projectsByCategory[cat].length})</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Tag size={16} color="#4b5563"/>{cat} ({sortedProjectsByCategory[cat].length})</div>
                     <ChevronDown size={20} style={{ transform: expandedCategories.has(cat) ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                   </div>
                   {expandedCategories.has(cat) && (
-                    <div style={projectGridStyle}>
-                      {projectsByCategory[cat].map((p) => (
-                        <div key={p.id} style={projectCardStyle} onClick={() => handleLoad(p.id)}>
-                          <div style={projectHeaderStyle}>
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                              <h3 style={projectTitleStyle}>{p.name}</h3>
-                              <p style={{...projectDescStyle, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getProjectDescription(p)}</p>
-                              <div style={projectMetaStyle}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /><span>更新: {formatDate(p.updatedAt)}</span></div>
-                              </div>
-                            </div>
-                            <div style={projectActionsStyle}>
-                              <button onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} style={iconButtonStyle}><Trash2 size={16} color="#dc2626" /></button>
-                            </div>
-                          </div>
+                    <DndContext 
+                      collisionDetection={closestCenter} 
+                      onDragEnd={(e) => handleDragEnd(e, cat)}
+                    >
+                      <SortableContext 
+                        items={sortedProjectsByCategory[cat].map(p => p.id)} 
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div style={projectGridStyle}>
+                          {sortedProjectsByCategory[cat].map((p) => (
+                            <SortableProjectCard
+                              key={p.id}
+                              project={p}
+                              onLoad={handleLoad}
+                              onDelete={handleDelete}
+                              onDuplicate={handleDuplicate}
+                            />
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   )}
                 </div>
               ))}
