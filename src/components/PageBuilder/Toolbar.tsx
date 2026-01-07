@@ -21,7 +21,7 @@ import {
 import { usePageStore } from '../../store/usePageStore';
 import { prepareImagesForExport } from '../../utils/imageHandler';
 import { generateGlobalStylesCSS } from '../../utils/globalStylesHelper';
-import { generateComponentHTML, getRequiredCSSFiles, generateCSSLinks, getCategoryFromComponentType } from '../../utils/htmlGenerator';
+import { generateComponentHTMLAsync, getRequiredCSSFiles, generateCSSLinks, getCategoryFromComponentType } from '../../utils/htmlGenerator';
 import { generateCSSTemplate, generateSectionId, saveCSSMetadata, isCSSGenerated, collectCustomCSSByCategory, appendCustomCSSToFile } from '../../utils/cssTemplateGenerator';
 import { wrapComponentHTML } from '../../utils/componentHtmlWrapper';
 import { componentTemplates } from '../../data/componentTemplates';
@@ -50,15 +50,19 @@ const Toolbar: React.FC = () => {
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProjectManager, setShowProjectManager] = useState(false);
 
-  const exportHTML = () => {
+  const exportHTML = async () => {
     // 新しいカテゴリのCSSテンプレートを生成
     generateAndDownloadMissingCSS();
 
     // Generate actual HTML for all components with unique ID wrappers
-    const componentsHTML = pageData.components.map(component => {
-      const html = generateComponentHTML(component, pageData.globalStyles);
+    // 非同期でHTMLを生成（Reactコンポーネントから直接生成）
+    const componentsHTMLPromises = pageData.components.map(async (component) => {
+      const html = await generateComponentHTMLAsync(component, pageData.globalStyles);
       return wrapComponentHTML(html, component);
-    }).join('\n\n');
+    });
+    
+    const componentsHTMLArray = await Promise.all(componentsHTMLPromises);
+    const componentsHTML = componentsHTMLArray.join('\n\n');
 
     const { globalSettings } = pageData;
 
@@ -192,7 +196,7 @@ ${cssLinks}
     
     if (directory) {
       // ディレクトリが指定されている場合、画像ファイルも含めてZIPファイルを作成
-      createZipWithDirectoryAndImages(htmlContent, directory, exportImages);
+      await createZipWithDirectoryAndImages(htmlContent, directory, exportImages);
     } else {
       // ディレクトリが指定されていない場合、単純にindex.htmlをダウンロード
       downloadFile(htmlContent, 'index.html', 'text/html');
@@ -226,68 +230,64 @@ ${cssLinks}
   };
 
   // ZIPファイルを作成してディレクトリ構造と画像を含める関数
-  const createZipWithDirectoryAndImages = (htmlContent: string, directoryName: string, images: { [filename: string]: string }) => {
-    // HTMLファイルは常にindex.html
-    downloadFile(htmlContent, 'index.html', 'text/html');
-    
-    // 画像ファイルがある場合は個別にダウンロード
-    if (Object.keys(images).length > 0) {
-      // 少し遅延してから画像ファイルをダウンロード
-      setTimeout(() => {
-        Object.entries(images).forEach(([filename, base64Data], index) => {
-          setTimeout(() => {
-            // Base64データをBlobに変換
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'image/jpeg' });
-            
-            // ファイルをダウンロード
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }, index * 200); // 200ms間隔でダウンロード
+  const createZipWithDirectoryAndImages = async (htmlContent: string, directoryName: string, images: { [filename: string]: string }) => {
+    try {
+      // JSZipを動的インポート（Vite環境での互換性のため）
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      
+      // ディレクトリを作成
+      const folder = zip.folder(directoryName);
+      if (!folder) {
+        throw new Error('Failed to create directory in ZIP');
+      }
+      
+      // HTMLファイルを追加
+      folder.file('index.html', htmlContent);
+      
+      // 画像ファイルがある場合はimgフォルダを作成して追加
+      if (Object.keys(images).length > 0) {
+        const imgFolder = folder.folder('img');
+        if (!imgFolder) {
+          throw new Error('Failed to create img directory in ZIP');
+        }
+        
+        Object.entries(images).forEach(([filename, base64Data]) => {
+          // Base64データをBlobに変換
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          
+          // 画像ファイルをZIPに追加
+          imgFolder.file(filename, byteArray);
         });
+      }
+      
+      // ZIPファイルを生成してダウンロード
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${directoryName}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      // 成功メッセージ
+      setTimeout(() => {
+        const imageList = Object.keys(images).length > 0 
+          ? `  └── img/\n      ${Object.keys(images).map(filename => `├── ${filename}`).join('\n      ')}`
+          : '';
+        alert(`「${directoryName}.zip」ファイルがダウンロードされました。\n\nZIPファイルを展開すると、以下の構造になります：\n\n${directoryName}/\n  ├── index.html\n${imageList}\n\nこの構造により、HTMLファイルから「../assets/」の相対パスでCSSとJavaScriptファイルに、「./img/」の相対パスで画像ファイルにアクセスできます。`);
       }, 500);
+    } catch (error) {
+      console.error('Failed to create ZIP file:', error);
+      alert('ZIPファイルの作成に失敗しました。エラー: ' + (error instanceof Error ? error.message : String(error)));
     }
-    
-    // ディレクトリ構造の説明を表示
-    const instructions = `
-HTMLファイルと${Object.keys(images).length}個の画像ファイルが出力されました。
-
-【ディレクトリ構造の設定方法】
-以下のフォルダ構造を作成してください：
-
-${directoryName}/
-  ├── index.html (ダウンロードしたHTMLファイル)
-  └── img/ (画像ファイル用フォルダ)
-      ${Object.keys(images).map(filename => `├── ${filename}`).join('\n        ')}
-
-【設定手順】
-1. プロジェクトのルートディレクトリに「assets」フォルダを作成
-2. 「${directoryName}」フォルダを作成
-3. ダウンロードした「index.html」ファイルを「${directoryName}」フォルダ内に配置
-4. 「${directoryName}/img」フォルダを作成
-5. ダウンロードした画像ファイルを「${directoryName}/img」フォルダ内に配置
-
-この構造により、HTMLファイルから「../assets/」の相対パスでCSSとJavaScriptファイルに、「./img/」の相対パスで画像ファイルにアクセスできます。
-
-【共通スタイル機能】
-HTMLファイルには、ページ設定で設定した共通スタイル（mainColor、baseColor、base2Color、accentColor）が自動的に適用されます。
-    `.trim();
-    
-    // 遅延してアラートを表示（ダウンロードが完了してから）
-    setTimeout(() => {
-      alert(instructions);
-    }, 1000 + Object.keys(images).length * 200);
   };
 
   // ファイルをダウンロードする関数
