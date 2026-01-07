@@ -47,7 +47,9 @@ export const componentTemplates: ComponentTemplate[] = [
           alt: 'ブラックリスト シーン3'
         }
       ],
-    }
+    },
+    cssFiles: ['kv.css'],
+    jsFiles: [],
   },
 
 
@@ -84,7 +86,9 @@ export const componentTemplates: ComponentTemplate[] = [
           price: '1,100',
         }
       ]
-    }
+    },
+    cssFiles: ['pricing.css'],
+    jsFiles: [],
   },
 
   // 番組配信 Components

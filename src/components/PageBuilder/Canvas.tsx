@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { usePageStore } from '../../store/usePageStore';
@@ -7,12 +7,14 @@ import ComponentRenderer from './ComponentRenderer';
 import AccessibilityChecker from './AccessibilityChecker';
 import Header from '../Layout/Header';
 import Footer from '../Layout/Footer';
-import { generateGlobalStylesCSS, generateComponentStyleCSS } from '../../utils/globalStylesHelper';
+import { generateGlobalStylesCSS } from '../../utils/globalStylesHelper';
+import { getRequiredCSSFiles } from '../../utils/htmlGenerator';
 
 const Canvas: React.FC = () => {
   const { pageData, reorderComponents, viewMode, previewMode, selectedComponentId } = usePageStore();
   const [showAccessibilityChecker, setShowAccessibilityChecker] = useState(false);
   const [hasAccessibilityIssues, setHasAccessibilityIssues] = useState(false);
+  const [containerQueriesCSS, setContainerQueriesCSS] = useState<string>('');
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -32,6 +34,18 @@ const Canvas: React.FC = () => {
         return { maxWidth: '768px' };
       default:
         return { maxWidth: 'none' };
+    }
+  };
+
+  // viewModeに応じたコンテナ幅を取得
+  const getContainerWidth = (): number => {
+    switch (viewMode) {
+      case 'mobile':
+        return 384;
+      case 'tablet':
+        return 768;
+      default:
+        return 1200; // Desktopのデフォルト幅
     }
   };
 
@@ -102,8 +116,118 @@ const Canvas: React.FC = () => {
     checkAccessibilityIssues();
   }, [selectedComponent?.style?.backgroundColor, selectedComponent?.style?.textColor, selectedComponent?.id]);
 
+  // CSSファイルからメディアクエリをContainer Queriesに変換
+  useEffect(() => {
+    const convertMediaQueriesToContainerQueries = async () => {
+      try {
+        // 必要なCSSファイルのリストを取得
+        const requiredCSSFiles = getRequiredCSSFiles(pageData.components);
+        
+        // 各CSSファイルを読み込んで変換
+        const conversionPromises = requiredCSSFiles.map(async (cssFile) => {
+          try {
+            const response = await fetch(`/program/st/promo/generator_common/css/${cssFile}`);
+            if (!response.ok) {
+              console.warn(`Failed to load CSS file: ${cssFile}`);
+              return '';
+            }
+            const cssText = await response.text();
+            
+            // VWをpxに変換する関数
+            const convertVWToPx = (cssText: string, containerWidth: number): string => {
+              // VW単位の値を検出して変換
+              // 例: 13.33vw -> (containerWidth * 13.33 / 100)px
+              const vwRegex = /(\d+\.?\d*)\s*vw/g;
+              
+              return cssText.replace(vwRegex, (match, value) => {
+                const vwValue = parseFloat(value);
+                const pxValue = (containerWidth * vwValue / 100).toFixed(2);
+                return `${pxValue}px`;
+              });
+            };
+
+            // メディアクエリをContainer Queriesに変換
+            // @media (max-width: XXXpx) { ... } を @container canvas-container (max-width: XXXpx) { ... } に変換
+            const convertMediaQueryToContainerQuery = (text: string, containerWidth: number): string => {
+              // 正規表現でメディアクエリを検出して変換
+              // @media (max-width: XXXpx) { ... } のパターン
+              const mediaQueryRegex = /@media\s*\(([^)]+)\)\s*\{/g;
+              
+              let convertedText = text;
+              let match;
+              
+              // すべてのメディアクエリを検出
+              const matches: Array<{ start: number; end: number; condition: string }> = [];
+              while ((match = mediaQueryRegex.exec(text)) !== null) {
+                const condition = match[1];
+                // max-width または min-width を含む条件のみ変換
+                if (condition.includes('max-width') || condition.includes('min-width')) {
+                  matches.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    condition: condition.trim()
+                  });
+                }
+              }
+              
+              // 後ろから前に変換（インデックスのずれを防ぐため）
+              for (let i = matches.length - 1; i >= 0; i--) {
+                const { start, end, condition } = matches[i];
+                // メディアクエリの内容を取得（対応する閉じ括弧まで）
+                let contentStart = end;
+                let contentEnd = contentStart;
+                let braceCount = 1;
+                
+                while (contentEnd < text.length && braceCount > 0) {
+                  if (text[contentEnd] === '{') braceCount++;
+                  else if (text[contentEnd] === '}') braceCount--;
+                  contentEnd++;
+                }
+                
+                // メディアクエリの内容を抽出
+                const mediaContent = text.slice(contentStart, contentEnd - 1);
+                
+                // Container Queries内のVWをpxに変換
+                const mediaContentWithPx = convertVWToPx(mediaContent, containerWidth);
+                
+                // Container Queriesに変換
+                const containerQuery = `@container canvas-container (${condition}) {${mediaContentWithPx}}`;
+                
+                // 元のメディアクエリ全体を置換
+                convertedText = convertedText.slice(0, start) + containerQuery + convertedText.slice(contentEnd);
+              }
+              
+              return convertedText;
+            };
+            
+            const containerWidth = getContainerWidth();
+            return convertMediaQueryToContainerQuery(cssText, containerWidth);
+          } catch (error) {
+            console.warn(`Error converting CSS file ${cssFile}:`, error);
+            return '';
+          }
+        });
+        
+        const convertedCSSArray = await Promise.all(conversionPromises);
+        const combinedCSS = convertedCSSArray.filter(Boolean).join('\n\n');
+        
+        // デバッグ用: 変換後のCSSをコンソールに出力
+        if (combinedCSS) {
+          console.log('Converted Container Queries CSS:', combinedCSS.substring(0, 500));
+        }
+        
+        setContainerQueriesCSS(combinedCSS);
+      } catch (error) {
+        console.error('Error converting media queries to container queries:', error);
+        setContainerQueriesCSS('');
+      }
+    };
+
+    convertMediaQueriesToContainerQueries();
+  }, [pageData.components, viewMode]);
+
   // 動的スタイルの生成
-  const dynamicStyles = `
+  const dynamicStyles = useMemo(() => `
     ${generateGlobalStylesCSS(pageData.globalStyles)}
     ${pageData.components.map(component => 
       component.style ? `
@@ -120,7 +244,10 @@ const Canvas: React.FC = () => {
         }
       ` : ''
     ).join('')}
-  `;
+    
+    /* Container Queries（メディアクエリから自動変換） */
+    ${containerQueriesCSS}
+  `, [pageData.globalStyles, pageData.components, containerQueriesCSS]);
 
   const canvasStyle: React.CSSProperties = {
     flex: 1,
@@ -135,7 +262,10 @@ const Canvas: React.FC = () => {
     position: 'relative',
     minHeight: '100%',
     ...getCanvasWidth(),
-  };
+    // Container Queriesを有効化
+    containerType: 'inline-size',
+    containerName: 'canvas-container',
+  } as React.CSSProperties & { containerType: string; containerName: string };
 
   const emptyCanvasStyle: React.CSSProperties = {
     minHeight: '60vh',

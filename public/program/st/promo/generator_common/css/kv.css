@@ -1,191 +1,672 @@
 /* KVコンポーネント用CSS */
 
 /* 番組ヒーロー型KV */
-#kvArea {
-  position: relative;
-  background: #fff;
+@media (min-width: 769px) {
+  #kvArea .flexWrapper {
+    display: flex;
+    justify-content: space-between;
+    gap: 40px;
+    max-width: 1160px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 60px 0 50px 0;
+  }
+  #kvArea .flexWrapper .textInfo {
+    max-width: 580px;
+  }
+  #kvArea .textInfo h2 {
+    font-size: 48px;
+    font-weight: bold;
+    line-height: 1.5;
+    margin:  0 0 35px;
+  }
+  #kvArea .textInfo .flagWrapper {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 30px;
+  }
+  #kvArea .textInfo .flag {
+    background: #C3000F;
+    font-size: 12px;
+    line-height: 1.8;
+    font-weight: bold;
+    padding: 0 12px;
+    display: flex;
+    max-width: max-content;
+    min-height: 25px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+  }
+  #kvArea .textInfo .flag.flag_streaming {
+    color: #000;
+    background: #fff;
+    border: 1px solid #000;
+  }
+  #kvArea .textInfo .schedule {
+    font-size: 22px;
+    line-height: 1.8;
+    font-weight: 500;
+    margin: 0 0 21px;
+  }
+  #kvArea .textInfo .icon {
+    display: flex;
+  }
+  #kvArea .streamingBox {
+    margin-top: 30px;
+  }
+  #kvArea .streamingIcon {
+    margin: 28px 0 0;
+  }
+  #kvArea .textInfo .icon .iconImg {
+    margin-right: 20px;
+  }
+  #kvArea .textInfo .iconImg img {
+    max-width: 60px;
+    width: 100%;
+    height: auto;
+  }
+  #kvArea .textInfo .icon .iconInfo .chName {
+    font-size: 15px;
+    line-height: 1.8;
+    font-weight: 500;
+    margin: 0;
+  }
+  #kvArea .textInfo .icon .iconInfo .chNumber {
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+    margin: 0 0 2px;
+  }
+  #kvArea .textInfo .icon2 .iconInfo .chExplain {
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+    margin: 0 0 2px;
+  }
+  #kvArea .textInfo .icon2 .iconInfo a {
+    position: relative;
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  #kvArea .textInfo .icon2 .iconInfo a::after {
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/arrowBottom.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 15px;
+    height: 8px;
+    position: absolute;
+    right: -31px;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+
+  #kvArea .addInfo {
+    background: #1B1B1B;
+    padding: 40px 0;
+  }
+  #kvArea .addInfo .inner {
+    max-width: 1160px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  #kvArea .addInfo .description {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+  #programArea .description .more{
+    display: inline-block;
+  }
+
+  #kvArea .streamingInfo {
+    padding: 40px 0 0;
+  }
+  #kvArea .streamingInfo .inner {
+    max-width: 1160px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  #kvArea .streamingInfo ul li {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+  #kvArea .streamingInfo ul li:not(:last-child) {
+    margin: 0 0 30px;
+  }
+  #kvArea .streamingInfo ul li a.anchorLink {
+    position: relative;
+  }
+  #kvArea .streamingInfo ul li a.anchorLink::after {
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/arrowBottom.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 15px;
+    height: 8px;
+    position: absolute;
+    right: -31px;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+  #kvArea #kvSlider p.img{
+    max-width: 440px;
+    width: 100%;
+    height: 329px;
+    margin: 0 auto;
+    background: #000;
+    border: 1px solid #777;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #kvArea #kvSlider p.img img.guard{
+    max-height: 329px;
+  }
+  #kvArea .movieInfo {
+    max-width: 540px;
+    width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
+  #kvArea .movieInfo iframe {
+    width: 100%;
+  }
+  #kvArea .movieInfo.movieInfo_single{
+    max-width: 440px;
+    width: 100%;
+    height: max-content;
+    margin: 0 auto;
+    position: relative;
+  }
+  #kvArea .arrow{
+    display: block;
+    width: 30px;
+    height: 30px;
+    transform: rotate(-45deg);
+  }
+  #kvArea .arrow.arrow-prev{
+    border-top: 3px solid var(--base-color-sub) !important;
+    border-left: 3px solid var(--base-color-sub) !important;
+  }
+  #kvArea .arrow.arrow-next{
+    border-top: 3px solid var(--base-color-sub) !important;
+    border-right: 3px solid var(--base-color-sub) !important;
+  }
+  #kvArea .streamingBox {
+    display: flex;
+    justify-content: flex-start;
+  }
+  #kvArea .streamingItem:not(:last-child) {
+    margin-right: 22px;
+  }
+  #kvArea .streamingItem .streamingText {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  #kvArea .streamingItem .streamingText a{
+    position: relative;
+  }
+  #kvArea .streamingItem .streamingText a::after{
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/arrowBottom.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 15px;
+    height: 8px;
+    position: absolute;
+    right: -25px;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+  #kvArea .streamingItem .streamingText:not(:last-child) {
+    margin-bottom: 10px;
+  }
+  #kvArea .streamingItem .streamingText.weightM {
+    font-weight: 500;
+    display: flex;
+  }
+  #kvArea .streamingItem .streamingText.weightM span{
+    padding: 0 5px;
+    display: inline-flex;
+  }
+  #kvArea .streamingItem .streamingText.weightS {
+    line-height: 1.8;
+  }
+  #kvArea .streamingItem .streamingText.fontM {
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  #kvArea .streamingIcon a{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 360px;
+    width: 100%;
+    min-height: 72px;
+    font-size: 18px;
+    line-height: 1.5;
+    font-weight: 500;
+    position: relative;
+    text-align: center;
+    border: 2px solid #000;
+    border-radius: 36px;
+    color: #000;
+    background: #fff;
+  }
+  #kvArea .streamingIcon a::before {
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/streamingIcon.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    position: absolute;
+    left: 25px;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+  #kvArea #showDesc {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #0099ff;
+    cursor: pointer;
+    display: table;
+    position: relative;
+    background: none;
+    border-radius: 0;
+  }
+  #kvArea #showDesc:hover {
+    opacity: .5;
+  }
+  #kvArea #showDesc::before {
+    content: "";
+    width: 13px;
+    height: 1px;
+    background: #0099ff;
+    position: absolute;
+    top: 50%;
+    right: -31px;
+    -webkit-transform: translate(-50%, -50%);
+    -ms-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+    z-index: 1;
+  }
+  #kvArea #showDesc::after {
+    content: "";
+    width: 13px;
+    height: 1px;
+    background: #0099ff;
+    position: absolute;
+    top: 50%;
+    right: -31px;
+    -webkit-transform: translate(-50%, -50%) rotate(-90deg);
+    -ms-transform: translate(-50%, -50%) rotate(-90deg);
+    transform: translate(-50%, -50%) rotate(-90deg);
+    transition: all .3s;
+    z-index: 1;
+  }
+  #kvArea #showDesc.active::after {
+    -webkit-transform: translate(-50%, -50%) rotate(0deg);
+    -ms-transform: translate(-50%, -50%) rotate(0deg);
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
 }
 
-#kvArea .mainInfo {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 40px 20px;
+@media (max-width: 1000px) {
+  #kvArea .flexWrapper {
+    flex-direction: column-reverse;
+  }
+  #kvArea .flexWrapper .movieInfo {
+    text-align: center;
+  }
+  #kvArea .flexWrapper .movieInfo span {
+    display: block;
+    text-align: left;
+  }
 }
 
-#kvArea .flexWrapper {
-  display: flex;
-  gap: 40px;
-  align-items: flex-start;
-}
 
-#kvArea .textInfo {
-  flex: 1;
-  min-width: 0;
+@media (max-width: 768px) {
+  #kvArea .flexWrapper {
+    display: flex;
+    flex-direction: column-reverse;
+    width: 100%;
+    margin: 0 auto;
+    padding: 10.66vw 5.33vw;
+  }
+  #kvArea .movieInfo span {
+    display: block;
+    text-align: left;
+  }
+  #kvArea .movieInfo iframe {
+    width: 89.33vw;
+    height: 67.06vw;
+    margin: 0 auto;
+  }
+  #kvArea .movieInfo.movieInfo_single{
+    max-width: 89.33vw;
+    width: 100%;
+    margin: 0 auto;
+  }
+  #kvArea .textInfo h2 {
+    font-size: 7.46vw;
+    font-weight: bold;
+    line-height: 1.5;
+    margin: 8vw 0;
+  }
+  #kvArea .textInfo .flagWrapper {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.33vw;
+    margin: 0 0 5.33vw;
+  }
+  #kvArea .textInfo .flag {
+    background: #C3000F;
+    font-size: 3.2vw;
+    line-height: inherit;
+    font-weight: bold;
+    display: flex;
+    max-width: max-content;
+    width: 100%;
+    min-height: 6.8vw;
+    align-items: center;
+    justify-content: center;
+    padding: 1.06vw 3.2vw;
+    border-radius: 0.8vw;
+  }
+  #kvArea .textInfo .flag.flag_streaming {
+    color: #000;
+    background: #fff;
+    border: 1px solid #000;
+  }
+  #kvArea .textInfo .schedule {
+    font-size: 4.8vw;
+    line-height: 1.8;
+    margin: 0 0 5.33vw;
+  }
+  #kvArea .textInfo .icon {
+    display: flex;
+  }
+  #kvArea .streamingBox {
+    margin-top: 6.66vw;
+  }
+  #kvArea .streamingIcon {
+    margin: 8vw 0 0;
+  }
+  #kvArea .textInfo .icon .iconImg {
+    margin-right: 4vw;
+  }
+  #kvArea .textInfo .iconImg img {
+    max-width: 13.33vw;
+    width: 100%;
+    height: auto;
+  }
+  #kvArea .textInfo .icon .iconInfo .chName {
+    font-size: 3.73vw;
+    line-height: 1.8;
+    font-weight: 500;
+    margin: 0;
+  }
+  #kvArea .textInfo .icon .iconInfo .chNumber {
+    font-size: 3.46vw;
+    line-height: 1.5;
+    font-weight: 500;
+    margin: 0 0 2.66vw;
+  }
+  #kvArea .textInfo .icon2 .iconInfo .chExplain {
+    font-size: 3.46vw;
+    line-height: 1.8;
+    font-weight: 500;
+    margin: 0 0 2.66vw;
+  }
+  #kvArea .textInfo .icon2 .iconInfo a {
+    position: relative;
+    font-size: 3.73vw;
+    line-height: 1;
+  }
+  #kvArea .textInfo .icon2 .iconInfo a::after {
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/arrowBottom.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 3.73vw;
+    height: 2vw;
+    position: absolute;
+    right: -8.66vw;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+  #kvArea .streamingBox {
+    display: flex;
+    justify-content: flex-start;
+  }
+  #kvArea .streamingItem:not(:last-child) {
+    margin-right: 5.01vw;
+  }
+  #kvArea .streamingItem .streamingText {
+    font-size: 3.46vw;
+    font-weight: 400;
+    line-height: 1.8;
+  }
+  #kvArea .streamingItem .streamingText a{
+    position: relative;
+  }
+  #kvArea .streamingItem .streamingText a::after{
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/arrowBottom.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 3.73vw;
+    height: 2vw;
+    position: absolute;
+    right: -5vw;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+  #kvArea .streamingItem .streamingText:not(:last-child){
+    margin-bottom: 2.66vw;
+  }
+  #kvArea .streamingItem .streamingText.weightM {
+    font-weight: 500;
+  }
+  #kvArea .streamingItem .streamingText.weightM span {
+    padding: 0 1.06vw;
+    display: inline-grid;
+    vertical-align: sub;
+  }
+  #kvArea .streamingItem .streamingText.weightM span img {
+    width: 36.53vw;
+    height: auto;
+  }
+  #kvArea .streamingItem .streamingText.weightS {
+    line-height: 1.8;
+  }
+  #kvArea .streamingItem .streamingText.fontM {
+    font-size: 3.73vw;
+    line-height: 1.8;
+  }
+  #kvArea .streamingItem.text{
+    max-width: 72vw;
+  }
+  #kvArea .streamingIcon {
+    margin: 8vw 0 0;
+  }
+  #kvArea .addInfo {
+    background: #1B1B1B;
+    padding: 8vw 0;
+  }
+  #kvArea .addInfo .inner {
+    padding: 0 5.33vw;
+  }
+  #kvArea .addInfo .description {
+    font-size: 4vw;
+    line-height: 1.8;
+  }
+  #kvArea .streamingInfo {
+    padding: 10.66vw 0 0;
+  }
+  #kvArea .streamingInfo .inner {
+    padding: 0 5.33vw;
+  }
+  #kvArea .streamingInfo ul li {
+    font-size: 4vw;
+    line-height: 1.8;
+  }
+  #kvArea .streamingInfo ul li:not(:last-child) {
+    margin: 0 0 9.33vw;
+  }
+  #kvArea .streamingInfo ul li a.anchorLink {
+    position: relative;
+  }
+  #kvArea .streamingInfo ul li a.anchorLink::after {
+    content: "";
+    background-image: url(/program/st/promo/generator_common/img/arrowBottom.png);
+    background-repeat: no-repeat;
+    background-size: 100%;
+    display: inline-block;
+    width: 3.73vw;
+    height: 2vw;
+    position: absolute;
+    right: -8.66vw;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
 }
-
-#kvArea .textInfo h2 {
-  font-size: 32px;
-  font-weight: bold;
-  line-height: 1.4;
-  margin: 0 0 20px 0;
-}
-
-#kvArea .flagWrapper {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-#kvArea .flag {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  margin: 0;
-}
-
-#kvArea .flag_streaming {
-  background-color: #E60012;
-  color: #ffffff;
-}
-
-#kvArea .schedule {
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 20px;
-}
-
-#kvArea .icon {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: #f8fafc;
-  border-radius: 8px;
-}
-
-#kvArea .iconInfo {
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-#kvArea .chNumber {
-  font-weight: bold;
-  margin: 0 0 4px 0;
-}
-
-#kvArea .chName {
-  margin: 0;
-}
-
-#kvArea .chExplain {
-  margin: 0 0 8px 0;
-}
-
-#kvArea .borderBottom {
-  color: #3b82f6;
-  text-decoration: underline;
-}
-
-#kvArea .streamingBox {
+/* ナビゲーションボタン（前へ/次へ） */
+#kvArea .slider-nav-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: #f0f9ff;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: none;
+  z-index: 10;
+  padding: 0;
 }
-
-#kvArea .streamingItem.img {
-  flex-shrink: 0;
+#kvArea .slider-nav-prev {
+  left: -30px;
 }
-
-#kvArea .streamingItem.img img {
-  height: 40px;
-  width: auto;
+#kvArea .slider-nav-next {
+  right: -30px;
 }
-
-#kvArea .streamingItem.text {
-  font-size: 14px;
-  line-height: 1.5;
+#kvArea .slider-nav-button:hover {
+  transform: translateY(-50%) scale(1.1);
 }
-
-#kvArea .mediaArea {
-  flex: 1;
-  position: relative;
-}
-
-#kvArea .mediaContainer {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16/9;
-  overflow: hidden;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-#kvArea .mediaContainer .img {
-  margin: 0;
-}
-
-#kvArea .mediaContainer img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-#kvArea .mediaContainer iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-
+/* 矢印スタイル（既存のスタイルを上書き） */
 #kvArea .arrow {
   display: block;
   width: 30px;
   height: 30px;
-  border-top: 3px solid #333;
-  border-right: 3px solid #333;
 }
-
-#kvArea .arrow-prev {
-  transform: rotate(-135deg);
+#kvArea .arrow.arrow-prev {
+  transform: rotate(-45deg);
+  border-top: 3px solid var(--base-color-sub);
+  border-left: 3px solid var(--base-color-sub);
+  border-right: none;
+  border-bottom: none;
 }
-
-#kvArea .arrow-next {
+#kvArea .arrow.arrow-next {
   transform: rotate(45deg);
+  border-top: 3px solid var(--base-color-sub);
+  border-right: 3px solid var(--base-color-sub);
+  border-left: none;
+  border-bottom: none;
 }
-
-#kvArea .mediaDots {
+/* ドットインジケーターコンテナ */
+#kvArea .slider-dots-container {
+  position: absolute;
+  bottom: -36px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 12px;
+  z-index: 10;
 }
-
-#kvArea .mediaDot {
-  width: 10px;
-  height: 10px;
+/* ドットインジケーター */
+#kvArea .slider-dot {
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: #d1d5db;
+  border: none;
   cursor: pointer;
   transition: all 0.3s ease;
+  padding: 0;
+  background-color: var(--common-color);
 }
-
-#kvArea .mediaDot.active {
-  background: #3b82f6;
-  width: 24px;
-  border-radius: 5px;
+#kvArea .slider-dot[aria-current="true"] {
+  background-color: var(--main-color);
+}
+#kvArea .slider-dot:hover {
+  opacity: 0.7;
+}
+#kvArea .slider-dot[aria-current="true"]:hover {
+  opacity: 1;
+}
+/* メディア数インジケーター */
+#kvArea .slider-counter {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  backdrop-filter: blur(10px);
+}
+/* スライダーアイテムの表示制御 */
+#kvArea [data-slider-item] {
+  display: none;
+}
+#kvArea [data-slider-item].is-active {
+  display: block;
 }
 
 /* レスポンシブ対応 */
 @media (max-width: 768px) {
-  #kvArea .flexWrapper {
-    flex-direction: column;
+  #kvArea .slider-nav-prev {
+    left: -20px;
   }
-
-  #kvArea .textInfo h2 {
-    font-size: 24px;
+  #kvArea .slider-nav-next {
+    right: -20px;
+  }
+  #kvArea .slider-dots-container {
+    bottom: -30px;
+    gap: 8px;
+  }
+  #kvArea .slider-dot {
+    width: 12px;
+    height: 12px;
+  }
+  #kvArea .slider-counter {
+    top: 12px;
+    left: 12px;
+    font-size: 10px;
+    padding: 3px 6px;
   }
 }

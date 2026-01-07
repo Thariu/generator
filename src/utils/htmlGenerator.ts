@@ -50,15 +50,32 @@ export const getRequiredCSSFiles = (components: ComponentData[]): string[] => {
   const cssFiles = new Set<string>();
 
   components.forEach(component => {
+    // componentTemplates.tsから直接cssFilesを取得
+    const template = componentTemplates.find(t => t.type === component.type);
+    if (template && (template as any).cssFiles) {
+      (template as any).cssFiles.forEach((file: string) => cssFiles.add(file));
+    }
+    
+    // カスタムテンプレートも確認
+    const customTemplates = getComponentTemplates();
+    const customTemplate = customTemplates.find(t => {
+      const templateType = t.name.replace('Component', '').toLowerCase();
+      return templateType === component.type || t.uniqueId === component.type;
+    });
+    if (customTemplate?.cssFiles) {
+      customTemplate.cssFiles.forEach((file: string) => cssFiles.add(file));
+    }
+    
+    // フォールバック: カテゴリからCSSファイル名を生成（既存のロジック）
     const category = getCategoryFromComponentType(component.type);
-    if (category) {
+    if (category && !template && !customTemplate) {
       const cssFileName = getCSSFileNameForCategory(category);
       cssFiles.add(cssFileName);
     }
   });
 
-  // 共通CSSは常に含める
-  return ['common.css', ...Array.from(cssFiles)];
+  // 共通CSSとcomponent-common.cssは常に含める
+  return ['common.css', 'component-common.css', ...Array.from(cssFiles)];
 };
 
 // CSSリンクタグを生成

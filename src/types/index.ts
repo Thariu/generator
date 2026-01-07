@@ -24,6 +24,7 @@ export type ComponentType =
 
 
 
+
   | 'tel';
 
 export interface ComponentStyle {
