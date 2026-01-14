@@ -18,7 +18,8 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
     deleteProject, 
     duplicateProject,
     reorderProjects,
-    getSavedProjects, 
+    getSavedProjects,
+    syncProjectsFromServer,
     getCurrentProjectName,
     restoreFromBackup 
   } = usePageStore();
@@ -54,32 +55,37 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      const projects = getSavedProjects();
-      setSavedProjects(projects);
-      const currentName = getCurrentProjectName();
-      if (currentName) {
-        const currentProject = projects.find(p => p.name === currentName);
-        setProjectName(currentName);
-        setCategory(currentProject?.category || '');
-      } else {
-        setProjectName('');
-        setCategory('');
-      }
-      setExpandedCategories(new Set());
+      // プロジェクト管理画面を開いたときにサーバーから同期
+      const loadProjects = async () => {
+        await syncProjectsFromServer();
+        const projects = getSavedProjects();
+        setSavedProjects(projects);
+        const currentName = getCurrentProjectName();
+        if (currentName) {
+          const currentProject = projects.find(p => p.name === currentName);
+          setProjectName(currentName);
+          setCategory(currentProject?.category || '');
+        } else {
+          setProjectName('');
+          setCategory('');
+        }
+        setExpandedCategories(new Set());
+      };
+      loadProjects();
     }
-  }, [isOpen, getCurrentProjectName]);
+  }, [isOpen, getCurrentProjectName, syncProjectsFromServer]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const finalCategory = category.trim() || '未分類';
     if (projectName.trim()) {
-      saveProject(projectName.trim(), finalCategory);
+      await saveProject(projectName.trim(), finalCategory);
       setSavedProjects(getSavedProjects());
       setShowSaveForm(false);
       setExpandedCategories(prev => new Set(prev).add(finalCategory));
     }
   };
 
-  const handleSaveAsNew = () => {
+  const handleSaveAsNew = async () => {
     const finalCategory = category.trim() || '未分類';
     if (projectName.trim()) {
       // 新規プロジェクトとして保存（既存の同名プロジェクトがあっても新規作成）
@@ -96,20 +102,20 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
       
       // プロジェクト名を更新して保存
       setProjectName(newName);
-      saveProject(newName, finalCategory);
+      await saveProject(newName, finalCategory);
       setSavedProjects(getSavedProjects());
       setShowSaveForm(false);
       setExpandedCategories(prev => new Set(prev).add(finalCategory));
     }
   };
 
-  const handleSaveOverwrite = () => {
+  const handleSaveOverwrite = async () => {
     const finalCategory = category.trim() || '未分類';
     if (projectName.trim()) {
       // 確認ダイアログを表示
       if (confirm(`プロジェクト「${projectName.trim()}」を上書き保存しますか？\n既存のデータが置き換えられます。`)) {
         // 既存プロジェクトを上書き保存
-        saveProject(projectName.trim(), finalCategory);
+        await saveProject(projectName.trim(), finalCategory);
         setSavedProjects(getSavedProjects());
         setShowSaveForm(false);
         setExpandedCategories(prev => new Set(prev).add(finalCategory));
@@ -131,19 +137,19 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
     onClose();
   };
 
-  const handleDelete = (projectId: string) => {
+  const handleDelete = async (projectId: string) => {
     if (confirm('このプロジェクトを削除してもよろしいですか？')) {
-      deleteProject(projectId);
+      await deleteProject(projectId);
       setSavedProjects(getSavedProjects());
     }
   };
 
-  const handleDuplicate = (projectId: string) => {
+  const handleDuplicate = async (projectId: string) => {
     const originalProject = savedProjects.find(p => p.id === projectId);
     if (!originalProject) return;
     
     if (confirm(`プロジェクト「${originalProject.name}」を複製しますか？`)) {
-      duplicateProject(projectId);
+      await duplicateProject(projectId);
       const updatedProjects = getSavedProjects();
       setSavedProjects(updatedProjects);
       
@@ -153,7 +159,7 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent, category: string) => {
+  const handleDragEnd = async (event: DragEndEvent, category: string) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -162,7 +168,7 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ isOpen, onClose }) => {
     const newIndex = categoryProjects.findIndex(p => p.id === over.id);
 
     if (oldIndex !== -1 && newIndex !== -1) {
-      reorderProjects(category, oldIndex, newIndex);
+      await reorderProjects(category, oldIndex, newIndex);
       setSavedProjects(getSavedProjects());
     }
   };

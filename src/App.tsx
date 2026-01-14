@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { usePageStore } from './store/usePageStore';
 import ComponentLibrary from './components/PageBuilder/ComponentLibrary';
 import Canvas from './components/PageBuilder/Canvas';
@@ -6,7 +6,12 @@ import PropertiesPanel from './components/PageBuilder/PropertiesPanel';
 import Toolbar from './components/PageBuilder/Toolbar';
 
 function App() {
-  const { previewMode, showComponentLibrary, showPropertiesPanel } = usePageStore();
+  const { previewMode, showComponentLibrary, showPropertiesPanel, syncProjectsFromServer } = usePageStore();
+
+  // アプリ起動時にプロジェクトをサーバーから同期
+  useEffect(() => {
+    syncProjectsFromServer();
+  }, [syncProjectsFromServer]);
 
   const appStyle: React.CSSProperties = {
     height: '100vh',

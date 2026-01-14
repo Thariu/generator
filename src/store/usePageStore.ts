@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import { ComponentData, PageData, ViewMode, SavedProject, GlobalStyles } from '../types';
+import { 
+  syncProjects, 
+  saveProjectHybrid, 
+  deleteProjectHybrid,
+  getProjectsFromLocalStorage,
+  saveProjectsToLocalStorage
+} from '../utils/projectSync';
 
 interface PageStore {
   pageData: PageData;
@@ -32,12 +39,13 @@ interface PageStore {
   toggleClassNames: () => void;
   
   // プロジェクト保存機能（共有ストレージ）
-  saveProject: (name: string, category: string) => void;
+  saveProject: (name: string, category: string) => Promise<void>;
   loadProject: (projectId: string) => void;
-  deleteProject: (projectId: string) => void;
-  duplicateProject: (projectId: string) => void;
-  reorderProjects: (category: string, oldIndex: number, newIndex: number) => void;
+  deleteProject: (projectId: string) => Promise<void>;
+  duplicateProject: (projectId: string) => Promise<void>;
+  reorderProjects: (category: string, oldIndex: number, newIndex: number) => Promise<void>;
   getSavedProjects: () => SavedProject[];
+  syncProjectsFromServer: () => Promise<void>;
   getCurrentProjectName: () => string | null;
   setCurrentProjectName: (name: string | null) => void;
   currentProjectName: string | null;
@@ -79,24 +87,13 @@ const SHARED_PROJECTS_STORAGE_KEY = 'lp-builder-shared-projects';
 const SHARED_PROJECTS_BACKUP_KEY = 'lp-builder-shared-projects-backup';
 const CURRENT_PROJECT_KEY = 'lp-builder-current-project';
 
+// localStorageの関数はprojectSync.tsに移動したが、後方互換性のため残す
 const getSharedProjects = (): SavedProject[] => {
-  try {
-    const stored = localStorage.getItem(SHARED_PROJECTS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Failed to load shared projects:', error);
-    return [];
-  }
+  return getProjectsFromLocalStorage();
 };
 
 const saveSharedProjects = (projects: SavedProject[]): void => {
-  try {
-    const projectsJson = JSON.stringify(projects);
-    localStorage.setItem(SHARED_PROJECTS_STORAGE_KEY, projectsJson);
-    localStorage.setItem(SHARED_PROJECTS_BACKUP_KEY, projectsJson);
-  } catch (error) {
-    console.error('Failed to save shared projects:', error);
-  }
+  saveProjectsToLocalStorage(projects);
 };
 
 const getBackupProjects = (): SavedProject[] => {
@@ -213,32 +210,44 @@ export const usePageStore = create<PageStore>((set, get) => ({
   togglePropertiesPanel: () => set((state) => ({ showPropertiesPanel: !state.showPropertiesPanel })),
   toggleClassNames: () => set((state) => ({ showClassNames: !state.showClassNames })),
 
-  saveProject: (name, category) => {
+  saveProject: async (name, category) => {
     const state = get();
     const now = new Date().toISOString();
-    const newProject: SavedProject = {
-      id: `project-${Date.now()}`,
-      name,
-      category,
-      pageData: state.pageData,
-      createdAt: now,
-      updatedAt: now
-    };
     const existingProjects = getSharedProjects();
     const existingProjectIndex = existingProjects.findIndex(p => p.name === name);
-    let updatedProjects: SavedProject[];
+    
+    let projectToSave: SavedProject;
+    
     if (existingProjectIndex >= 0) {
-      updatedProjects = [...existingProjects];
-      updatedProjects[existingProjectIndex] = {
+      // 既存プロジェクトの上書き
+      projectToSave = {
         ...existingProjects[existingProjectIndex],
         pageData: state.pageData,
         category,
         updatedAt: now
       };
     } else {
-      updatedProjects = [...existingProjects, newProject];
+      // 新規プロジェクトの作成
+      // カテゴリ内の最大orderを取得して+1
+      const categoryProjects = existingProjects.filter(p => (p.category || '未分類') === (category || '未分類'));
+      const maxOrder = categoryProjects.length > 0 
+        ? Math.max(...categoryProjects.map(p => p.order || 0))
+        : -1;
+      
+      projectToSave = {
+        id: `project-${Date.now()}`,
+        name,
+        category,
+        pageData: state.pageData,
+        createdAt: now,
+        updatedAt: now,
+        order: maxOrder + 1
+      };
     }
-    saveSharedProjects(updatedProjects);
+    
+    // Supabase + localStorage ハイブリッド保存
+    await saveProjectHybrid(projectToSave);
+    
     set({ currentProjectName: name });
     localStorage.setItem(CURRENT_PROJECT_KEY, name);
   },
@@ -262,18 +271,20 @@ export const usePageStore = create<PageStore>((set, get) => ({
     }
   },
 
-  deleteProject: (projectId) => {
+  deleteProject: async (projectId) => {
     const projects = getSharedProjects();
-    const updatedProjects = projects.filter(p => p.id !== projectId);
-    saveSharedProjects(updatedProjects);
     const deletedProject = projects.find(p => p.id === projectId);
+    
+    // Supabase + localStorage ハイブリッド削除
+    await deleteProjectHybrid(projectId);
+    
     if (deletedProject && get().currentProjectName === deletedProject.name) {
       set({ currentProjectName: null });
       localStorage.removeItem(CURRENT_PROJECT_KEY);
     }
   },
 
-  duplicateProject: (projectId) => {
+  duplicateProject: async (projectId) => {
     const projects = getSharedProjects();
     const projectToDuplicate = projects.find(p => p.id === projectId);
     if (!projectToDuplicate) return;
@@ -306,11 +317,11 @@ export const usePageStore = create<PageStore>((set, get) => ({
       order: maxOrder + 1
     };
 
-    const updatedProjects = [...projects, duplicatedProject];
-    saveSharedProjects(updatedProjects);
+    // Supabase + localStorage ハイブリッド保存
+    await saveProjectHybrid(duplicatedProject);
   },
 
-  reorderProjects: (category, oldIndex, newIndex) => {
+  reorderProjects: async (category, oldIndex, newIndex) => {
     const projects = getSharedProjects();
     const categoryKey = category || '未分類';
     const categoryProjects = projects
@@ -340,10 +351,27 @@ export const usePageStore = create<PageStore>((set, get) => ({
       return p;
     });
 
+    // 並び替えられたプロジェクトをSupabaseに保存
+    for (const project of categoryProjects) {
+      await saveProjectHybrid(project);
+    }
+    
+    // localStorageも更新
     saveSharedProjects(updatedProjects);
   },
   
   getSavedProjects: getSharedProjects,
+  
+  syncProjectsFromServer: async () => {
+    try {
+      const syncedProjects = await syncProjects();
+      // 同期されたプロジェクトでlocalStorageを更新
+      saveSharedProjects(syncedProjects);
+    } catch (error) {
+      console.error('Error syncing projects from server:', error);
+    }
+  },
+  
   getCurrentProjectName: () => get().currentProjectName,
   setCurrentProjectName: (name) => {
     set({ currentProjectName: name });

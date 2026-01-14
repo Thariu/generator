@@ -77,3 +77,4 @@ COMMENT ON TABLE projects IS 'ランディングページビルダーのプロ�
 COMMENT ON COLUMN projects.name IS 'プロジェクト名（一意）';
 COMMENT ON COLUMN projects.category IS 'プロジェクトカテゴリ';
 COMMENT ON COLUMN projects.page_data IS 'ページデータ全体（コンポーネント、グローバル設定、スタイル）';
+
