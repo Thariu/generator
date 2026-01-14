@@ -162,109 +162,40 @@ export default defineConfig({
                 writeFileSync(templatesFilePath, templatesContent, 'utf-8');
                 console.log(`Updated componentTemplates.ts`);
 
-                // 4. ComponentTypeへの自動追加（src/types/index.ts）
-                const typesFilePath = join(projectBasePath, 'src/types/index.ts');
-                let typesContent = readFileSync(typesFilePath, 'utf-8');
-                
-                // ComponentTypeに既に存在するかチェック
-                const typeExists = typesContent.includes(`'${categoryRomanized}'`);
-                if (!typeExists) {
-                  // ComponentTypeの定義を見つけて、新しいタイプを追加
-                  // 最後の 'tel'; の前に追加
-                  const typePattern = /(\s+\| 'tel';\s*)/;
-                  if (typePattern.test(typesContent)) {
-                    typesContent = typesContent.replace(
-                      typePattern,
-                      `  | '${categoryRomanized}'\n$1`
-                    );
-                    writeFileSync(typesFilePath, typesContent, 'utf-8');
-                    console.log(`Added '${categoryRomanized}' to ComponentType`);
-                  } else {
-                    // パターンが見つからない場合、'tel'の前に追加を試みる
-                    const fallbackPattern = /(\| 'tel';\s*)/;
-                    if (fallbackPattern.test(typesContent)) {
-                      typesContent = typesContent.replace(
-                        fallbackPattern,
-                        `| '${categoryRomanized}'\n  $1`
-                      );
-                      writeFileSync(typesFilePath, typesContent, 'utf-8');
-                      console.log(`Added '${categoryRomanized}' to ComponentType (fallback)`);
-                    }
-                  }
-                } else {
-                  console.log(`ComponentType '${categoryRomanized}' already exists`);
-                }
-
-                // 5. ComponentRenderer.tsxへの自動追加
-                const rendererFilePath = join(projectBasePath, 'src/components/PageBuilder/ComponentRenderer.tsx');
-                let rendererContent = readFileSync(rendererFilePath, 'utf-8');
+                // 4. componentRegistry.tsへの自動追加（一元管理）
+                const registryFilePath = join(projectBasePath, 'src/utils/componentRegistry.ts');
+                let registryContent = readFileSync(registryFilePath, 'utf-8');
                 
                 // コンポーネント名を生成（uniqueIdから）
-                const componentNameForImport = componentFileName.replace('.tsx', '');
+                const componentNameForRegistry = componentFileName.replace('.tsx', '');
                 
-                // インポート文が既に存在するかチェック
-                const importExists = rendererContent.includes(`import ${componentNameForImport}`);
-                if (!importExists) {
-                  // 最後のインポート文の後に追加
-                  // BtnComponentのインポートの後に追加する
-                  const lastImportPattern = /(import BtnComponent from '\.\.\/Components\/BtnComponent';)/;
-                  if (lastImportPattern.test(rendererContent)) {
-                    rendererContent = rendererContent.replace(
-                      lastImportPattern,
-                      // 修正: componentFileNameから.tsxを削除
-                      `$1\nimport ${componentNameForImport} from '../Components/${componentNameForImport}';`
+                // COMPONENT_TYPE_MAPに既に存在するかチェック
+                const typeExistsInRegistry = registryContent.includes(`'${categoryRomanized}':`);
+                if (!typeExistsInRegistry) {
+                  // COMPONENT_TYPE_MAPに新しいエントリを追加
+                  // 最後の 'tel': 'tel', の前に追加
+                  const telPattern = /(\s+'tel': 'tel',\s*)/;
+                  if (telPattern.test(registryContent)) {
+                    registryContent = registryContent.replace(
+                      telPattern,
+                      `  '${categoryRomanized}': '${componentNameForRegistry}',\n$1`
                     );
-                    writeFileSync(rendererFilePath, rendererContent, 'utf-8');
-                    console.log(`Added import for ${componentNameForImport}`);
+                    writeFileSync(registryFilePath, registryContent, 'utf-8');
+                    console.log(`Added '${categoryRomanized}': '${componentNameForRegistry}' to componentRegistry.ts`);
                   } else {
-                    // BtnComponentが見つからない場合、最後のインポートの後に追加
-                    const anyImportPattern = /(import \w+Component from '\.\.\/Components\/[\w\/]+';\s*)/;
-                    const matches = rendererContent.match(new RegExp(anyImportPattern.source, 'g'));
-                    if (matches && matches.length > 0) {
-                      const lastImport = matches[matches.length - 1];
-                      rendererContent = rendererContent.replace(
-                        lastImport,
-                        // 修正: componentFileNameから.tsxを削除
-                        `${lastImport}import ${componentNameForImport} from '../Components/${componentNameForImport}';\n`
+                    // パターンが見つからない場合、最後のエントリの前に追加を試みる
+                    const lastEntryPattern = /(\s+'tel': 'tel',)/;
+                    if (lastEntryPattern.test(registryContent)) {
+                      registryContent = registryContent.replace(
+                        lastEntryPattern,
+                        `  '${categoryRomanized}': '${componentNameForRegistry}',\n$1`
                       );
-                      writeFileSync(rendererFilePath, rendererContent, 'utf-8');
-                      console.log(`Added import for ${componentNameForImport} (fallback)`);
+                      writeFileSync(registryFilePath, registryContent, 'utf-8');
+                      console.log(`Added '${categoryRomanized}': '${componentNameForRegistry}' to componentRegistry.ts (fallback)`);
                     }
                   }
                 } else {
-                  console.log(`Import for ${componentNameForImport} already exists`);
-                }
-                
-                // 既存のインポート文から.tsx拡張子を削除（修正）
-                // すべてのコンポーネントインポート文から.tsx拡張子を削除
-                const allImportWithExtensionPattern = /import\s+(\w+Component)\s+from\s+['"]\.\.\/Components\/(\w+Component)\.tsx['"];/g;
-                if (allImportWithExtensionPattern.test(rendererContent)) {
-                  rendererContent = rendererContent.replace(
-                    allImportWithExtensionPattern,
-                    "import $1 from '../Components/$2';"
-                  );
-                  writeFileSync(rendererFilePath, rendererContent, 'utf-8');
-                  console.log(`Removed .tsx extension from all component imports`);
-                }
-                
-                // case文が既に存在するかチェック
-                const caseExists = rendererContent.includes(`case '${categoryRomanized}':`);
-                if (!caseExists) {
-                  // switch文内のdefaultの前に追加（より柔軟な方法）
-                  const defaultPattern = /(\s+)(default:)/;
-                  if (defaultPattern.test(rendererContent)) {
-                    // defaultの前に新しいcaseを追加
-                    rendererContent = rendererContent.replace(
-                      defaultPattern,
-                      `$1case '${categoryRomanized}':\n        return <${componentNameForImport} {...commonProps} />;\n      $1$2`
-                    );
-                    writeFileSync(rendererFilePath, rendererContent, 'utf-8');
-                    console.log(`Added case '${categoryRomanized}' to ComponentRenderer`);
-                  } else {
-                    console.warn(`Could not find 'default:' pattern in ComponentRenderer.tsx`);
-                  }
-                } else {
-                  console.log(`Case '${categoryRomanized}' already exists in ComponentRenderer`);
+                  console.log(`Component type '${categoryRomanized}' already exists in componentRegistry.ts`);
                 }
 
                 // 6. CSSファイルの処理

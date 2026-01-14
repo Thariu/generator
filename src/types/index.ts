@@ -1,3 +1,6 @@
+// ComponentTypeはcomponentRegistry.tsから再エクスポート
+export type { ComponentType } from '../utils/componentRegistry';
+
 export interface ComponentData {
   id: string;
   type: ComponentType;
@@ -5,27 +8,6 @@ export interface ComponentData {
   style?: ComponentStyle;
   templateId?: string; // テンプレートID（同じカテゴリ内の複数コンポーネントを区別するため）
 }
-
-export type ComponentType =
-  | 'kv'
-  | 'test'
-  | 'footer'
-  | 'about'
-  | 'pricing'
-  | 'contact'
-  | 'headline'
-  | 'app-intro'
-  | 'tab'
-  | 'modal'
-  | 'slider'
-
-
-
-
-
-
-
-  | 'tel';
 
 export interface ComponentStyle {
   theme?: 'light' | 'dark';

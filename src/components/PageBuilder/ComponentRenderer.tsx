@@ -3,6 +3,7 @@ import { ComponentData } from '../../types';
 import { usePageStore } from '../../store/usePageStore';
 import { componentTemplates } from '../../data/componentTemplates';
 import { getComponentTemplates } from '../../utils/componentTemplateStorage';
+import { getComponentName } from '../../utils/componentRegistry';
 
 interface ComponentRendererProps {
   component: ComponentData;
@@ -216,22 +217,8 @@ const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
       }
     }
 
-    // templateIdがない場合、または該当するコンポーネントが見つからない場合は従来のswitch文を使用
-    // コンポーネントタイプからコンポーネント名へのマッピング
-    const typeToComponentNameMap: Record<string, string> = {
-      'kv': 'KVComponent',
-      'headline': 'HeadlineComponent',
-      'test': 'FAQComponent',
-      'footer': 'FooterComponent',
-      'pricing': 'PricingComponent',
-      'app-intro': 'AppIntroComponent',
-      'tab': 'TabComponent',
-      'modal': 'ModalComponent',
-      'slider': 'SliderComponent',
-      'tel': 'tel', // tel.tsxのファイル名に合わせる
-    };
-
-    const componentName = typeToComponentNameMap[component.type];
+    // templateIdがない場合、または該当するコンポーネントが見つからない場合はcomponentRegistryを使用
+    const componentName = getComponentName(component.type);
     if (componentName && componentMap[componentName]) {
       const DynamicComponent = componentMap[componentName];
       return <DynamicComponent {...commonProps} />;

@@ -5,6 +5,7 @@ import { getComponentTemplates } from './componentTemplateStorage';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { usePageStore } from '../store/usePageStore';
+import { getComponentName } from './componentRegistry';
 
 // カテゴリ名からCSSファイル名を生成
 const generateCSSFileName = (category: string): string => {
@@ -123,19 +124,8 @@ const getComponentNameFromUniqueId = (uniqueId: string): string => {
   return componentName;
 };
 
-// コンポーネントタイプからコンポーネント名を取得
-const typeToComponentNameMap: Record<string, string> = {
-  'kv': 'KVComponent',
-  'headline': 'HeadlineComponent',
-  'test': 'FAQComponent',
-  'footer': 'FooterComponent',
-  'pricing': 'PricingComponent',
-  'app-intro': 'AppIntroComponent',
-  'tab': 'TabComponent',
-  'modal': 'ModalComponent',
-  'slider': 'SliderComponent',
-  'tel': 'tel',
-};
+// コンポーネントタイプからコンポーネント名を取得（componentRegistryからインポート）
+import { COMPONENT_TYPE_MAP, getComponentName } from './componentRegistry';
 
 /**
  * ReactコンポーネントをHTML文字列に変換
@@ -181,7 +171,7 @@ const renderComponentToHTML = async (
 
       // templateIdで解決できない場合、typeから解決
       if (!ComponentToRender) {
-        const componentName = typeToComponentNameMap[component.type];
+        const componentName = getComponentName(component.type);
         if (componentName && componentMap[componentName]) {
           ComponentToRender = componentMap[componentName];
         }

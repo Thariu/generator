@@ -1735,8 +1735,8 @@ export default ${componentName};`;
           .toLowerCase()
           .replace(/^-/, '');
         
-        // 既存のComponentTypeに存在するかチェック
-        const existingTypes: ComponentType[] = ['kv', 'test', 'footer', 'about', 'pricing', 'contact', 'headline', 'app-intro', 'tab', 'modal', 'slider', 'tel'];
+        // 既存のComponentTypeに存在するかチェック（componentRegistryから取得）
+        const existingTypes: ComponentType[] = Object.keys(COMPONENT_TYPE_MAP) as ComponentType[];
         
         // カテゴリマッピングを使用してタイプを決定
         const categoryTypeMap: Record<string, ComponentType> = {
@@ -1850,8 +1850,8 @@ export default ${componentName};`;
     // uniqueIdからコンポーネントタイプを生成（kv_program_hero -> kv-program-hero）
     const componentType = metadata.uniqueId.replace(/_/g, '-');
     
-    // 既存のComponentTypeをチェック
-    const existingTypes: string[] = ['kv', 'test', 'footer', 'about', 'pricing', 'contact', 'headline', 'app-intro', 'tab', 'modal', 'slider'];
+    // 既存のComponentTypeをチェック（componentRegistryから取得）
+    const existingTypes: string[] = Object.keys(COMPONENT_TYPE_MAP);
     const needsTypeUpdate = !existingTypes.includes(componentType);
     
     // componentTemplates.tsに追加するコード
@@ -1900,42 +1900,21 @@ ${componentTemplateCode}
 注：配列の最後にカンマ！を追加することを忘れないでください
 
 
-## 3. src/types/index.ts の更新
+## 3. src/utils/componentRegistry.ts の更新
 
-ComponentType に新しいタイプを追加する必要がある場合
+コンポーネントタイプとコンポーネント名のマッピングを追加する必要がある場合
 
 \`\`\`typescript
-export type ComponentType =
-  | 'kv'
-  | 'test'
-  | 'footer'
-  | 'about'
-  | 'pricing'
-  | 'contact'
-  | 'headline'
-  | 'app-intro'
-  | 'tab'
-  | 'modal'
-  | 'slider'${typeUpdateCode};
+export const COMPONENT_TYPE_MAP = {
+  // ... 既存のエントリ ...
+  '${componentType}': '${componentName}',
+  // ... 残りのエントリ ...
+} as const;
 \`\`\`
 
-  ${needsTypeUpdate ? `⚠ 注：'${componentType}' はComponentType に追加する必要があります。` : `✅'${componentType}' は既存のタイプです。追加不要ですが、確認してください。`}
+  ${needsTypeUpdate ? `⚠ 注：'${componentType}': '${componentName}' をCOMPONENT_TYPE_MAPに追加する必要があります。` : `✅'${componentType}' は既存のタイプです。追加不要ですが、確認してください。`}
 
-
-## 4. ComponentRenderer.tsx の更新に応じて
-
-新しいコンポーネントタイプを使用する場合、以下のファイルにインポートとレンダリングロジックを追加してください:
-
-\`src/components/PageBuilder/ComponentRenderer.tsx\`
-
-\`\`\`typescript
-\`\`\`typescript
-import ${componentName} from '../Components/${componentName}';
-
-// switch文でレンダリング処理を追加
-case '${componentType}':
-  return <${componentName} component={component} />;
-\`\`\`
+注：コンポーネントビルダーで「コンポーネント追加」をクリックすると、自動的にcomponentRegistry.tsが更新されます。
 
 
 ## 完了
