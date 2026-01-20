@@ -261,6 +261,222 @@ export default defineConfig({
         });
       },
     },
+    // エディターファイル作成APIエンドポイント
+    {
+      name: 'editor-file-api',
+      configureServer(server) {
+        server.middlewares.use('/api/create-editor', async (req, res, next) => {
+          if (req.method !== 'POST') {
+            res.statusCode = 405;
+            res.end('Method Not Allowed');
+            return;
+          }
+
+          try {
+            let body = '';
+            req.on('data', chunk => {
+              body += chunk.toString();
+            });
+
+            req.on('end', async () => {
+              try {
+                const data = JSON.parse(body);
+                const {
+                  componentType,
+                  fileName,
+                  fileContent,
+                } = data;
+
+                // プロジェクトのベースパス（現在のディレクトリ）
+                const projectBasePath = process.cwd();
+                const editorsDirPath = join(projectBasePath, 'src/components/Editors/ComponentEditors');
+                const editorFilePath = join(editorsDirPath, fileName);
+
+                // 1. ComponentEditorsディレクトリが存在しない場合は作成
+                if (!existsSync(editorsDirPath)) {
+                  mkdirSync(editorsDirPath, { recursive: true });
+                  console.log(`Created directory: ${editorsDirPath}`);
+                }
+
+                // 2. ファイルの重複チェック
+                if (existsSync(editorFilePath)) {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.statusCode = 409; // Conflict
+                  res.end(JSON.stringify({
+                    success: false,
+                    error: 'FILE_EXISTS',
+                    message: `エディターファイル「${fileName}」は既に存在します。`,
+                    fileName: fileName,
+                    filePath: editorFilePath,
+                  }));
+                  return;
+                }
+
+                // 3. エディターファイルを作成
+                writeFileSync(editorFilePath, fileContent, 'utf-8');
+                console.log(`Editor file created: ${editorFilePath}`);
+
+                // 4. エディタレジストリ（index.ts）を更新
+                const registryIndexPath = join(editorsDirPath, 'index.ts');
+                let registryContent = '';
+                
+                if (existsSync(registryIndexPath)) {
+                  registryContent = readFileSync(registryIndexPath, 'utf-8');
+                } else {
+                  // 新規作成
+                  registryContent = `// コンポーネントエディタのレジストリ
+
+import { ComponentType } from '../../../types';
+import { BaseEditorProps } from './BaseEditor';
+import React from 'react';
+
+export type ComponentEditor = React.FC<BaseEditorProps>;
+
+/**
+ * コンポーネントタイプごとのエディタマッピング
+ * 新しいコンポーネントエディタを追加する場合は、ここに登録する
+ */
+export const componentEditors: Partial<Record<ComponentType, ComponentEditor>> = {};
+
+/**
+ * コンポーネントタイプに対応するエディタを取得
+ * コンポーネントビルダーで作成されたコンポーネントなど、未登録のタイプの場合はnullを返す
+ */
+export const getComponentEditor = (type: ComponentType): ComponentEditor | null => {
+  return componentEditors[type] || null;
+};
+`;
+                }
+
+                // エディタ名を生成（ファイル名から.tsxを削除）
+                const editorName = fileName.replace('.tsx', '');
+                const pascalCaseEditorName = editorName;
+
+                // インポート文を追加（既に存在する場合はスキップ）
+                const importPattern = new RegExp(`import.*${pascalCaseEditorName}.*from`, 'g');
+                if (!importPattern.test(registryContent)) {
+                  // すべてのインポート文を検索して、最後のインポートの後に追加
+                  const allImports = registryContent.match(/import\s+.*?from\s+['"].*?['"];?\s*/g);
+                  if (allImports && allImports.length > 0) {
+                    // 最後のインポート文の後に追加
+                    const lastImport = allImports[allImports.length - 1];
+                    const lastImportIndex = registryContent.lastIndexOf(lastImport);
+                    const insertIndex = lastImportIndex + lastImport.length;
+                    registryContent = registryContent.slice(0, insertIndex) + 
+                      `\nimport { ${pascalCaseEditorName} } from './${editorName}';` + 
+                      registryContent.slice(insertIndex);
+                  } else {
+                    // インポートが見つからない場合は、BaseEditorのインポートの後に追加
+                    const baseEditorImportMatch = registryContent.match(/import.*BaseEditor.*from.*['"];?\s*/);
+                    if (baseEditorImportMatch) {
+                      const insertIndex = baseEditorImportMatch.index! + baseEditorImportMatch[0].length;
+                      registryContent = registryContent.slice(0, insertIndex) + 
+                        `import { ${pascalCaseEditorName} } from './${editorName}';\n` + 
+                        registryContent.slice(insertIndex);
+                    } else {
+                      // それでも見つからない場合は、ファイルの先頭付近に追加
+                      const reactImportMatch = registryContent.match(/import\s+React.*from.*['"];?\s*/);
+                      if (reactImportMatch) {
+                        const insertIndex = reactImportMatch.index! + reactImportMatch[0].length;
+                        registryContent = registryContent.slice(0, insertIndex) + 
+                          `\nimport { ${pascalCaseEditorName} } from './${editorName}';` + 
+                          registryContent.slice(insertIndex);
+                      }
+                    }
+                  }
+                }
+
+                // componentEditorsオブジェクトに追加（既に存在する場合はスキップ）
+                const editorEntryPattern = new RegExp(`['"]${componentType}['"]:\\s*${pascalCaseEditorName}`, 'g');
+                if (!editorEntryPattern.test(registryContent)) {
+                  // componentEditorsオブジェクト内に追加（最後のエントリの後に）
+                  const editorsObjectMatch = registryContent.match(/export const componentEditors[^=]*=\s*\{([^}]*)\}/s);
+                  if (editorsObjectMatch) {
+                    const editorsObjectContent = editorsObjectMatch[1];
+                    const newEntry = `  '${componentType}': ${pascalCaseEditorName},\n`;
+                    
+                    // 既存のエントリがある場合、最後のエントリの後に追加
+                    if (editorsObjectContent.trim()) {
+                      // 最後のエントリを動的に検出（カンマで終わる最後の行）
+                      const lines = editorsObjectContent.split('\n');
+                      let lastEntryLineIndex = -1;
+                      for (let i = lines.length - 1; i >= 0; i--) {
+                        const line = lines[i].trim();
+                        // カンマで終わる行、または空でない行を探す
+                        if (line && (line.endsWith(',') || line.match(/^\s*['"][^'"]+['"]:\s*\w+,?\s*$/))) {
+                          lastEntryLineIndex = i;
+                          break;
+                        }
+                      }
+                      
+                      if (lastEntryLineIndex >= 0) {
+                        // 最後のエントリの後に追加
+                        const lastEntryLine = lines[lastEntryLineIndex];
+                        const indent = lastEntryLine.match(/^(\s*)/)?.[1] || '  ';
+                        lines.splice(lastEntryLineIndex + 1, 0, `${indent}'${componentType}': ${pascalCaseEditorName},`);
+                        const updatedContent = lines.join('\n');
+                        registryContent = registryContent.replace(
+                          /export const componentEditors[^=]*=\s*\{([^}]*)\}/s,
+                          `export const componentEditors: Partial<Record<ComponentType, ComponentEditor>> = {${updatedContent}}`
+                        );
+                      } else {
+                        // フォールバック: オブジェクトの閉じ括弧の直前に追加
+                        registryContent = registryContent.replace(
+                          /(\}\s*;)/,
+                          `  '${componentType}': ${pascalCaseEditorName},\n$1`
+                        );
+                      }
+                    } else {
+                      // 空のオブジェクトの場合
+                      registryContent = registryContent.replace(
+                        /export const componentEditors[^=]*=\s*\{\s*\}/,
+                        `export const componentEditors: Partial<Record<ComponentType, ComponentEditor>> = {${newEntry}}`
+                      );
+                    }
+                  } else {
+                    // パターンが見つからない場合は、オブジェクトの閉じ括弧の直前に追加
+                    const closingBraceMatch = registryContent.match(/(\s*\}\s*;)/);
+                    if (closingBraceMatch) {
+                      registryContent = registryContent.replace(
+                        closingBraceMatch[0],
+                        `  '${componentType}': ${pascalCaseEditorName},\n${closingBraceMatch[0]}`
+                      );
+                    }
+                  }
+                }
+
+                writeFileSync(registryIndexPath, registryContent, 'utf-8');
+                console.log(`Updated editor registry: ${registryIndexPath}`);
+
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 200;
+                res.end(JSON.stringify({
+                  success: true,
+                  message: `エディターファイル「${fileName}」が作成されました`,
+                  filePath: editorFilePath,
+                  fileName: fileName,
+                }));
+              } catch (error: any) {
+                console.error('Error creating editor file:', error);
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 500;
+                res.end(JSON.stringify({
+                  success: false,
+                  error: error.message || 'エディターファイルの作成に失敗しました',
+                }));
+              }
+            });
+          } catch (error: any) {
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 500;
+            res.end(JSON.stringify({
+              success: false,
+              error: error.message || 'リクエストの処理に失敗しました',
+            }));
+          }
+        });
+      },
+    },
     // 共通画像一覧取得APIエンドポイント
     {
       name: 'common-images-api',

@@ -19,6 +19,7 @@ import { usePageStore } from '../../store/usePageStore';
 import { ComponentType } from '../../types';
 import { scopeCSSWithSectionId, generateCSSTemplate, appendCustomCSSToFile, isCSSGenerated } from '../../utils/cssTemplateGenerator';
 import { generateAndSaveFieldDefinition } from '../../utils/fieldDefinitionStorage';
+import { generateAndSaveEditorFile, generateEditorFileName } from '../../utils/editorFileGenerator';
 
 interface PropField {
   id: string;
@@ -1626,6 +1627,9 @@ export default ${componentName};`;
       // 注意: この時点ではまだvalidComponentTypeが決定されていないため、
       // 後でページに追加する際に決定されるタイプを使用する
       // ここでは一時的にcomponentTypeFromNameを使用し、後で更新する
+      let generatedComponentType: string | null = null;
+      let generatedFieldConfig: any = null;
+      
       if (propSchema && propSchema.length > 0) {
         try {
           // コンポーネントタイプを生成（例: "programHero" -> "program-hero"）
@@ -1646,10 +1650,10 @@ export default ${componentName};`;
           };
           
           // カテゴリからタイプを決定、なければcomponentTypeFromNameを使用
-          const componentType = categoryTypeMap[finalCategoryRomanized] || componentTypeFromName;
+          generatedComponentType = categoryTypeMap[finalCategoryRomanized] || componentTypeFromName;
           
-          generateAndSaveFieldDefinition(componentType, propSchema);
-          console.log('フィールド定義を自動生成しました:', componentType);
+          generatedFieldConfig = generateAndSaveFieldDefinition(generatedComponentType, propSchema);
+          console.log('フィールド定義を自動生成しました:', generatedComponentType);
         } catch (error) {
           console.warn('フィールド定義の生成に失敗しました:', error);
         }
@@ -1728,7 +1732,43 @@ export default ${componentName};`;
           const data = await response.json();
           if (data.success) {
             console.log('Component file created:', data);
-            alert(`コンポーネント「${displayName}」が正常に作成されました！\n\n作成されたファイル:\n- ${data.fileName}\n${data.cssFileName ? `- ${data.cssFileName}` : ''}\n\ncomponentTemplates.tsも更新されました。`);
+            
+            // 2.6. エディターファイルを自動生成
+            let editorFileGenerated = false;
+            let editorFileError: string | null = null;
+            
+            if (generatedComponentType && generatedFieldConfig) {
+              try {
+                await generateAndSaveEditorFile(generatedComponentType, generatedFieldConfig);
+                editorFileGenerated = true;
+                console.log('エディターファイルを自動生成しました:', generatedComponentType);
+              } catch (error) {
+                editorFileError = error instanceof Error ? error.message : '不明なエラー';
+                console.warn('エディターファイルの生成に失敗しました:', error);
+                // エディターファイルの生成に失敗しても、コンポーネント作成は続行
+              }
+            }
+            
+            // 成功メッセージを構築
+            const createdFiles = [
+              data.fileName,
+              data.cssFileName,
+              ...(generatedComponentType && editorFileGenerated ? [generateEditorFileName(generatedComponentType)] : [])
+            ].filter(Boolean);
+            
+            let successMessage = `コンポーネント「${displayName}」が正常に作成されました！\n\n作成されたファイル:\n${createdFiles.map(f => `- ${f}`).join('\n')}\n\ncomponentTemplates.tsも更新されました。`;
+            
+            if (generatedComponentType) {
+              if (editorFileGenerated) {
+                successMessage += `\n\n✅ エディターファイルも自動生成されました。プロパティパネルで編集可能です。`;
+              } else if (editorFileError) {
+                successMessage += `\n\n⚠️ エディターファイルの生成に失敗しました: ${editorFileError}\nフィールド定義は保存されているため、汎用エディタで編集可能です。`;
+              } else {
+                successMessage += `\n\nℹ️ エディターファイルは生成されませんでした（propSchemaが空の可能性があります）。\n汎用エディタで編集可能です。`;
+              }
+            }
+            
+            alert(successMessage);
           } else {
             // ファイル重複エラーの場合
             if (data.error === 'FILE_EXISTS') {
