@@ -10,8 +10,28 @@ interface GlobalSettingsPanelProps {
 const GlobalSettingsPanel: React.FC<GlobalSettingsPanelProps> = ({ isOpen, onClose }) => {
   const { pageData, updateGlobalSettings } = usePageStore();
 
+  // メタタイトルの固定サフィックス
+  const TITLE_SUFFIX = '｜スカパー！: スポーツ＆音楽ライブ、アイドル、アニメ、ドラマ、映画など';
+
+  // タイトルからサフィックスを除去して取得
+  const getTitleWithoutSuffix = () => {
+    const title = pageData.globalSettings.title || '';
+    if (title.includes('｜スカパー！:')) {
+      return title.replace(/｜スカパー！:.*$/, '').trim();
+    }
+    return title;
+  };
+
   const handleSettingChange = (key: string, value: string | boolean) => {
     updateGlobalSettings({ [key]: value });
+  };
+
+  // タイトル変更時の処理（サフィックスを自動追加）
+  const handleTitleChange = (value: string) => {
+    // サフィックスが含まれている場合は削除
+    const titleWithoutSuffix = value.replace(/｜スカパー！:.*$/, '').trim();
+    // サフィックスを自動的に追加（usePageStore.tsでも追加されるが、念のため）
+    updateGlobalSettings({ title: titleWithoutSuffix });
   };
 
   if (!isOpen) return null;
@@ -212,8 +232,8 @@ const GlobalSettingsPanel: React.FC<GlobalSettingsPanelProps> = ({ isOpen, onClo
               <label style={labelStyle}>ページタイトル</label>
               <input
                 type="text"
-                value={pageData.globalSettings.title}
-                onChange={(e) => handleSettingChange('title', e.target.value)}
+                value={getTitleWithoutSuffix()}
+                onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder="例: タイトルを挿入"
                 style={inputStyle}
                 onFocus={(e) => {
@@ -225,8 +245,28 @@ const GlobalSettingsPanel: React.FC<GlobalSettingsPanelProps> = ({ isOpen, onClo
                   e.target.style.boxShadow = 'none';
                 }}
               />
+              {/* 固定サフィックスの表示（編集不可） */}
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                backgroundColor: '#f3f4f6',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                fontSize: '13px',
+                color: '#6b7280',
+                display: 'flex',
+                alignItems: 'center',
+              }}>
+                <span>{getTitleWithoutSuffix() || 'タイトルを挿入'}</span>
+                <span style={{ 
+                  color: '#9ca3af',
+                  fontSize: '12px',
+                  userSelect: 'none',
+                  pointerEvents: 'none',
+                }}>{TITLE_SUFFIX}</span>
+              </div>
               <p style={helpTextStyle}>
-                ※ブラウザのタブに表示されるタイトルです。
+                ※ブラウザに表示されるタイトルです。「{TITLE_SUFFIX}」の部分は自動的に追加されます。
               </p>
             </div>
 
