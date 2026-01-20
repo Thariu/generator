@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 // https://vitejs.dev/config/
@@ -257,6 +257,54 @@ export default defineConfig({
               success: false,
               error: error.message || 'リクエストの処理に失敗しました',
             }));
+          }
+        });
+      },
+    },
+    // 共通画像一覧取得APIエンドポイント
+    {
+      name: 'common-images-api',
+      configureServer(server) {
+        server.middlewares.use('/api/common-images', async (req, res, next) => {
+          if (req.method !== 'GET') {
+            res.statusCode = 405;
+            res.end('Method Not Allowed');
+            return;
+          }
+
+          try {
+            const projectBasePath = process.cwd();
+            const imgDirPath = join(projectBasePath, 'public/program/st/promo/generator_common/img');
+
+            // ディレクトリが存在しない場合は空配列を返す
+            if (!existsSync(imgDirPath)) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 200;
+              res.end(JSON.stringify({ images: [] }));
+              return;
+            }
+
+            // 画像ファイルのみをフィルタリング
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
+            const files = readdirSync(imgDirPath).filter(file => {
+              const filePath = join(imgDirPath, file);
+              const stats = statSync(filePath);
+              if (!stats.isFile()) return false;
+              const ext = file.toLowerCase().substring(file.lastIndexOf('.'));
+              return imageExtensions.includes(ext);
+            });
+
+            // ファイル名をソート
+            const sortedFiles = files.sort();
+
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ images: sortedFiles }));
+          } catch (error: any) {
+            console.error('Error fetching common images:', error);
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: error.message || 'Failed to fetch common images' }));
           }
         });
       },

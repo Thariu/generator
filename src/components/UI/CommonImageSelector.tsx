@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, Check } from 'lucide-react';
-import { getCommonImagesList, getCommonImagePath, COMMON_IMAGES } from '../../utils/commonImages';
+import { getCommonImagesList, getCommonImagePath } from '../../utils/commonImages';
 
 interface CommonImageSelectorProps {
   onImageSelect: (imagePath: string) => void;
@@ -14,7 +14,25 @@ const CommonImageSelector: React.FC<CommonImageSelectorProps> = ({
   className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const commonImages = getCommonImagesList();
+  const [commonImages, setCommonImages] = useState<Array<{name: string, path: string, key: string}>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 共通画像一覧を取得
+  useEffect(() => {
+    const loadImages = async () => {
+      setIsLoading(true);
+      try {
+        const images = await getCommonImagesList();
+        setCommonImages(images);
+      } catch (error) {
+        console.error('Failed to load common images:', error);
+        setCommonImages([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadImages();
+  }, []);
 
   const handleImageSelect = (imagePath: string) => {
     onImageSelect(imagePath);
@@ -77,11 +95,9 @@ const CommonImageSelector: React.FC<CommonImageSelectorProps> = ({
   const getCurrentImageName = () => {
     if (!currentImagePath) return '画像を選択';
     
-    const imageEntry = Object.entries(COMMON_IMAGES).find(([_, filename]) => 
-      currentImagePath.includes(filename)
-    );
-    
-    return imageEntry ? imageEntry[1] : '画像を選択';
+    // パスからファイル名を抽出
+    const filename = currentImagePath.split('/').pop() || '画像を選択';
+    return filename;
   };
 
   return (
@@ -103,7 +119,16 @@ const CommonImageSelector: React.FC<CommonImageSelectorProps> = ({
 
       {isOpen && (
         <div style={dropdownStyle}>
-          {commonImages.map((image) => (
+          {isLoading ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>
+              読み込み中...
+            </div>
+          ) : commonImages.length === 0 ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>
+              共通画像が見つかりません
+            </div>
+          ) : (
+            commonImages.map((image) => (
             <div
               key={image.key}
               onClick={() => handleImageSelect(image.path)}
@@ -131,7 +156,8 @@ const CommonImageSelector: React.FC<CommonImageSelectorProps> = ({
                 <Check size={14} color="#2563eb" />
               )}
             </div>
-          ))}
+            ))
+          )}
         </div>
       )}
     </div>
