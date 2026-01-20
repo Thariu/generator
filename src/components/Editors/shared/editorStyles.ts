@@ -1,0 +1,126 @@
+// エディタの共通スタイル定義
+
+import React from 'react';
+
+export const editorStyles = {
+  container: {
+    padding: '16px',
+  } as React.CSSProperties,
+  section: {
+    marginBottom: '24px',
+  } as React.CSSProperties,
+  sectionTitle: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#111827',
+    marginBottom: '12px',
+  } as React.CSSProperties,
+  field: {
+    marginBottom: '16px',
+  } as React.CSSProperties,
+  label: {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#374151',
+    marginBottom: '4px',
+  } as React.CSSProperties,
+  input: {
+    width: '100%',
+    padding: '8px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out',
+  } as React.CSSProperties,
+  textarea: {
+    width: '100%',
+    padding: '8px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out',
+    resize: 'vertical' as const,
+  } as React.CSSProperties,
+  colorInputContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginTop: '8px',
+  } as React.CSSProperties,
+  colorInput: {
+    width: '32px',
+    height: '32px',
+    border: '1px solid #d1d5db',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    outline: 'none',
+  } as React.CSSProperties,
+  colorValue: {
+    flex: 1,
+    padding: '6px 8px',
+    border: '1px solid #d1d5db',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontFamily: 'monospace',
+    backgroundColor: '#f9fafb',
+    color: '#374151',
+  } as React.CSSProperties,
+  itemCard: {
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
+  } as React.CSSProperties,
+  itemHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: '12px',
+  } as React.CSSProperties,
+  itemIndex: {
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#4b5563',
+  } as React.CSSProperties,
+  deleteButton: {
+    color: '#dc2626',
+    backgroundColor: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: '4px',
+    transition: 'background-color 0.15s ease-in-out',
+  } as React.CSSProperties,
+  addButton: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '4px 12px',
+    fontSize: '12px',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'background-color 0.15s ease-in-out',
+  } as React.CSSProperties,
+  note: {
+    fontSize: '11px',
+    color: '#6b7280',
+    marginTop: '4px',
+    fontStyle: 'italic',
+  } as React.CSSProperties,
+  checkbox: {
+    marginRight: '8px',
+  } as React.CSSProperties,
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#374151',
+    cursor: 'pointer',
+  } as React.CSSProperties,
+};

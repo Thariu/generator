@@ -18,6 +18,7 @@ import { validatePropFields, formatValidationMessages, PropField as ValidationPr
 import { usePageStore } from '../../store/usePageStore';
 import { ComponentType } from '../../types';
 import { scopeCSSWithSectionId, generateCSSTemplate, appendCustomCSSToFile, isCSSGenerated } from '../../utils/cssTemplateGenerator';
+import { generateAndSaveFieldDefinition } from '../../utils/fieldDefinitionStorage';
 
 interface PropField {
   id: string;
@@ -1620,6 +1621,39 @@ export default ${componentName};`;
 
       // 2. localStorageに保存
       const savedTemplate = addComponentTemplate(templateData);
+
+      // 2.5. propSchemaからフィールド定義を自動生成して保存
+      // 注意: この時点ではまだvalidComponentTypeが決定されていないため、
+      // 後でページに追加する際に決定されるタイプを使用する
+      // ここでは一時的にcomponentTypeFromNameを使用し、後で更新する
+      if (propSchema && propSchema.length > 0) {
+        try {
+          // コンポーネントタイプを生成（例: "programHero" -> "program-hero"）
+          const componentTypeFromName = componentName
+            .replace(/Component$/i, '')
+            .replace(/([A-Z])/g, '-$1')
+            .toLowerCase()
+            .replace(/^-/, '');
+          
+          // カテゴリマッピングを考慮したタイプを決定
+          const categoryTypeMap: Record<string, string> = {
+            'kv': 'kv',
+            'pricing': 'pricing',
+            'streaming': 'app-intro',
+            'faq': 'test',
+            'footer': 'footer',
+            'test': 'test',
+          };
+          
+          // カテゴリからタイプを決定、なければcomponentTypeFromNameを使用
+          const componentType = categoryTypeMap[finalCategoryRomanized] || componentTypeFromName;
+          
+          generateAndSaveFieldDefinition(componentType, propSchema);
+          console.log('フィールド定義を自動生成しました:', componentType);
+        } catch (error) {
+          console.warn('フィールド定義の生成に失敗しました:', error);
+        }
+      }
 
       // 4. CSSファイルの準備（カスタムCSSがある場合）
       let cssFileName: string | undefined;
