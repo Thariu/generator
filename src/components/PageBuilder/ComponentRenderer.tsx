@@ -15,7 +15,8 @@ const loadedCssFiles = new Set<string>();
 // コンポーネント名からコンポーネントを取得するマッピングオブジェクト
 // 動的インポートで対応するコンポーネントを自動解決するために使用
 // import.meta.globを使用してComponentsディレクトリ内のすべてのコンポーネントを自動的にインポート
-const componentModules = import.meta.glob('../Components/*.tsx', { 
+// カテゴリごとのサブディレクトリからも読み込めるように **/*.tsx パターンを使用
+const componentModules = import.meta.glob('../Components/**/*.tsx', { 
   eager: true,
   import: 'default'
 }) as Record<string, React.ComponentType<any>>;
@@ -25,9 +26,10 @@ const componentMap: Record<string, React.ComponentType<any>> = {};
 
 Object.keys(componentModules).forEach((path) => {
   try {
-    // パスからファイル名を取得（例：../Components/Test10CComponent.tsx -> Test10CComponent.tsx）
+    // パスからファイル名を取得（例：../Components/kv/KVComponent.tsx -> KVComponent.tsx）
+    // サブディレクトリに対応するため、最後のスラッシュ以降を取得
     const fileName = path.split('/').pop() || '';
-    // ファイル名から拡張子を除去（例：Test10CComponent.tsx -> Test10CComponent）
+    // ファイル名から拡張子を除去（例：KVComponent.tsx -> KVComponent）
     const componentName = fileName.replace(/\.tsx$/, '');
     
     // コンポーネント名が有効な場合（空文字列でない場合）のみマッピングに追加

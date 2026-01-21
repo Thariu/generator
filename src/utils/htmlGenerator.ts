@@ -94,7 +94,8 @@ export const generateCSSLinks = (cssFiles: string[]): string => {
 
 // コンポーネント名からコンポーネントを取得するマッピングオブジェクト
 // ComponentRendererと同じロジックを使用
-const componentModules = import.meta.glob('../components/Components/*.tsx', { 
+// カテゴリごとのサブディレクトリからも読み込めるように **/*.tsx パターンを使用
+const componentModules = import.meta.glob('../components/Components/**/*.tsx', { 
   eager: true,
   import: 'default'
 }) as Record<string, React.ComponentType<any>>;

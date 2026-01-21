@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { BaseEditorProps, useBaseEditor } from './BaseEditor';
+import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
 import { usePageStore } from '../../../store/usePageStore';
 
 export const PricingEditor: React.FC<BaseEditorProps> = (props) => {

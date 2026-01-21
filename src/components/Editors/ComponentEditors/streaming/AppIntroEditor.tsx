@@ -1,7 +1,7 @@
 // アプリ紹介コンポーネントのエディタ
 
 import React from 'react';
-import { BaseEditorProps, useBaseEditor } from './BaseEditor';
+import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
 
 export const AppIntroEditor: React.FC<BaseEditorProps> = (props) => {
   const { component, styles, handlePropChange, handleFocus, handleBlur } = useBaseEditor(props);

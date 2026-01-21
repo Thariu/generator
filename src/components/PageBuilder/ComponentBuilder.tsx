@@ -1739,7 +1739,7 @@ export default ${componentName};`;
             
             if (generatedComponentType && generatedFieldConfig) {
               try {
-                await generateAndSaveEditorFile(generatedComponentType, generatedFieldConfig);
+                await generateAndSaveEditorFile(generatedComponentType, generatedFieldConfig, finalCategoryRomanized);
                 editorFileGenerated = true;
                 console.log('エディターファイルを自動生成しました:', generatedComponentType);
               } catch (error) {

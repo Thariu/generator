@@ -93,7 +93,8 @@ ${componentBody}
  */
 export const generateAndSaveEditorFile = async (
   componentType: string,
-  fieldConfig: ComponentFieldConfig
+  fieldConfig: ComponentFieldConfig,
+  categoryRomanized?: string
 ): Promise<string> => {
   const fileName = generateEditorFileName(componentType);
   const fileContent = generateEditorFileContent(componentType, fieldConfig);
@@ -109,6 +110,7 @@ export const generateAndSaveEditorFile = async (
         componentType,
         fileName,
         fileContent,
+        categoryRomanized, // カテゴリ情報を追加
       }),
     });
 

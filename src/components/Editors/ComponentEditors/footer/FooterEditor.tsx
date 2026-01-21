@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { BaseEditorProps, useBaseEditor } from './BaseEditor';
+import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
 
 export const FooterEditor: React.FC<BaseEditorProps> = (props) => {
   const { component, styles, handlePropChange, handleStyleChange, handleFocus, handleBlur } = useBaseEditor(props);

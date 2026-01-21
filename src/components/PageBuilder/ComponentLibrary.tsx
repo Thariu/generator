@@ -16,8 +16,8 @@ const ComponentLibrary: React.FC = () => {
   const { addComponent, pageData } = usePageStore();
 
   const SECRET_KEY = 'mode_admin';
-  // 「番組配信」「UI要素」「メディア」「お問い合わせ」カテゴリのコンポーネントを除外
-  const excludedCategories = ['番組配信', 'UI要素', 'メディア', 'お問い合わせ'];
+  // 「UI要素」「メディア」「お問い合わせ」カテゴリのコンポーネントを除外
+  const excludedCategories = ['UI要素', 'メディア', 'お問い合わせ'];
   
   // 重複を排除（componentTemplates.tsに存在するものは除外）
   const uniqueTemplates = React.useMemo(() => {

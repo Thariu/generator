@@ -2,12 +2,12 @@
 
 import { ComponentType } from '../../../types';
 import { BaseEditorProps } from './BaseEditor';
-import { HeadlineEditor } from './HeadlineEditor';
-import { KVEditor } from './KVEditor';
-import { FAQEditor } from './FAQEditor';
-import { FooterEditor } from './FooterEditor';
-import { PricingEditor } from './PricingEditor';
-import { AppIntroEditor } from './AppIntroEditor';
+import { HeadlineEditor } from './headline/HeadlineEditor';
+import { KVEditor } from './kv/KVEditor';
+import { FAQEditor } from './test/FAQEditor';
+import { FooterEditor } from './footer/FooterEditor';
+import { PricingEditor } from './pricing/PricingEditor';
+import { AppIntroEditor } from './streaming/AppIntroEditor';
 import React from 'react';
 
 export type ComponentEditor = React.FC<BaseEditorProps>;

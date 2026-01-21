@@ -1,7 +1,7 @@
 // ヘッドラインコンポーネントのエディタ
 
 import React from 'react';
-import { BaseEditorProps, useBaseEditor } from './BaseEditor';
+import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
 
 export const HeadlineEditor: React.FC<BaseEditorProps> = (props) => {
   const { component, styles, handlePropChange, handleStyleChange, handleFocus, handleBlur } = useBaseEditor(props);

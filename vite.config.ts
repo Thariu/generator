@@ -51,18 +51,28 @@ export default defineConfig({
                 const projectBasePath = process.cwd();
                 const componentsDirPath = join(projectBasePath, 'src/components/Components');
                 
+                // カテゴリごとのフォルダを作成（categoryRomanizedを使用）
+                const categoryFolder = categoryRomanized || 'other';
+                const categoryDirPath = join(componentsDirPath, categoryFolder);
+                
                 // uniqueIdを使用してファイル名を生成（例: test2_btn -> Test2BtnComponent.tsx）
                 // これにより、カテゴリとコンポーネント名の組み合わせで一意のファイル名になる
                 const componentFileName = uniqueId
                   .split('_')
                   .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                   .join('') + 'Component.tsx';
-                const componentFilePath = join(componentsDirPath, componentFileName);
+                const componentFilePath = join(categoryDirPath, componentFileName);
 
                 // 1. Componentsディレクトリが存在しない場合は作成
                 if (!existsSync(componentsDirPath)) {
                   mkdirSync(componentsDirPath, { recursive: true });
                   console.log(`Created directory: ${componentsDirPath}`);
+                }
+                
+                // 1.5. カテゴリディレクトリが存在しない場合は作成
+                if (!existsSync(categoryDirPath)) {
+                  mkdirSync(categoryDirPath, { recursive: true });
+                  console.log(`Created category directory: ${categoryDirPath}`);
                 }
 
                 // 2. ファイルの重複チェック
@@ -285,17 +295,41 @@ export default defineConfig({
                   componentType,
                   fileName,
                   fileContent,
+                  categoryRomanized, // カテゴリ情報を追加（オプション）
                 } = data;
 
                 // プロジェクトのベースパス（現在のディレクトリ）
                 const projectBasePath = process.cwd();
                 const editorsDirPath = join(projectBasePath, 'src/components/Editors/ComponentEditors');
-                const editorFilePath = join(editorsDirPath, fileName);
+                
+                // カテゴリごとのフォルダを作成（categoryRomanizedを使用、なければcomponentTypeから推測）
+                let categoryFolder = categoryRomanized;
+                if (!categoryFolder) {
+                  // componentTypeからカテゴリを推測
+                  const componentTypeToCategoryMap: Record<string, string> = {
+                    'kv': 'kv',
+                    'pricing': 'pricing',
+                    'app-intro': 'streaming',
+                    'test': 'test',
+                    'headline': 'headline',
+                    'footer': 'footer',
+                  };
+                  categoryFolder = componentTypeToCategoryMap[componentType] || 'other';
+                }
+                
+                const categoryDirPath = join(editorsDirPath, categoryFolder);
+                const editorFilePath = join(categoryDirPath, fileName);
 
                 // 1. ComponentEditorsディレクトリが存在しない場合は作成
                 if (!existsSync(editorsDirPath)) {
                   mkdirSync(editorsDirPath, { recursive: true });
                   console.log(`Created directory: ${editorsDirPath}`);
+                }
+                
+                // 1.5. カテゴリディレクトリが存在しない場合は作成
+                if (!existsSync(categoryDirPath)) {
+                  mkdirSync(categoryDirPath, { recursive: true });
+                  console.log(`Created category directory: ${categoryDirPath}`);
                 }
 
                 // 2. ファイルの重複チェック
@@ -363,7 +397,7 @@ export const getComponentEditor = (type: ComponentType): ComponentEditor | null 
                     const lastImportIndex = registryContent.lastIndexOf(lastImport);
                     const insertIndex = lastImportIndex + lastImport.length;
                     registryContent = registryContent.slice(0, insertIndex) + 
-                      `\nimport { ${pascalCaseEditorName} } from './${editorName}';` + 
+                      `\nimport { ${pascalCaseEditorName} } from './${categoryFolder}/${editorName}';` + 
                       registryContent.slice(insertIndex);
                   } else {
                     // インポートが見つからない場合は、BaseEditorのインポートの後に追加
@@ -371,7 +405,7 @@ export const getComponentEditor = (type: ComponentType): ComponentEditor | null 
                     if (baseEditorImportMatch) {
                       const insertIndex = baseEditorImportMatch.index! + baseEditorImportMatch[0].length;
                       registryContent = registryContent.slice(0, insertIndex) + 
-                        `import { ${pascalCaseEditorName} } from './${editorName}';\n` + 
+                        `import { ${pascalCaseEditorName} } from './${categoryFolder}/${editorName}';\n` + 
                         registryContent.slice(insertIndex);
                     } else {
                       // それでも見つからない場合は、ファイルの先頭付近に追加
@@ -379,7 +413,7 @@ export const getComponentEditor = (type: ComponentType): ComponentEditor | null 
                       if (reactImportMatch) {
                         const insertIndex = reactImportMatch.index! + reactImportMatch[0].length;
                         registryContent = registryContent.slice(0, insertIndex) + 
-                          `\nimport { ${pascalCaseEditorName} } from './${editorName}';` + 
+                          `\nimport { ${pascalCaseEditorName} } from './${categoryFolder}/${editorName}';` + 
                           registryContent.slice(insertIndex);
                       }
                     }
