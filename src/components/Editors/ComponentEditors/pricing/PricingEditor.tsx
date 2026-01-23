@@ -3,7 +3,7 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
-import { usePageStore } from '../../../store/usePageStore';
+import { usePageStore } from '../../../../store/usePageStore';
 
 export const PricingEditor: React.FC<BaseEditorProps> = (props) => {
   const { component, styles, handlePropChange, handleStyleChange, handleFocus, handleBlur } = useBaseEditor(props);

@@ -29,13 +29,13 @@ export const generateEditorFileContent = (
   
   const pascalCase = editorName;
   
-  // インポート文を生成
+  // インポート文を生成（カテゴリフォルダ構造に対応）
   const imports = `// ${componentType}コンポーネントのエディタ
 
 import React from 'react';
-import { BaseEditorProps, useBaseEditor } from './BaseEditor';
-import { FieldRenderer } from '../FieldRenderer';
-import { getNestedValue, setNestedValue } from '../shared/editorUtils';
+import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
+import { FieldRenderer } from '../../FieldRenderer';
+import { getNestedValue, setNestedValue } from '../../shared/editorUtils';
 import { usePageStore } from '../../../store/usePageStore';
 `;
 

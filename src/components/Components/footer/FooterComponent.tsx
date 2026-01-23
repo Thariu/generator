@@ -1,8 +1,8 @@
 import React from 'react';
 import { Twitter, Linkedin, Instagram, Facebook } from 'lucide-react';
-import { ComponentData } from '../../types';
-import { useComponentData } from '../../hooks/useComponentData';
-import { useDataPropBinding } from '../../hooks/useDataPropBinding';
+import { ComponentData } from '../../../types';
+import { useComponentData } from '../../../hooks/useComponentData';
+import { useDataPropBinding } from '../../../hooks/useDataPropBinding';
 
 interface FooterComponentProps {
   component: ComponentData;

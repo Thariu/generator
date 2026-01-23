@@ -1,7 +1,7 @@
 import React from 'react';
-import { ComponentData } from '../../types';
-import { useComponentData } from '../../hooks/useComponentData';
-import { useDataPropBinding } from '../../hooks/useDataPropBinding';
+import { ComponentData } from '../../../types';
+import { useComponentData } from '../../../hooks/useComponentData';
+import { useDataPropBinding } from '../../../hooks/useDataPropBinding';
 
 interface AppIntroComponentProps {
   component: ComponentData;

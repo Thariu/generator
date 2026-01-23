@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Play, Calendar, Users } from 'lucide-react';
-import { ComponentData } from '../../types';
-import { useComponentData } from '../../hooks/useComponentData';
-import { useDataPropBinding } from '../../hooks/useDataPropBinding';
+import { ComponentData } from '../../../types';
+import { useComponentData } from '../../../hooks/useComponentData';
+import { useDataPropBinding } from '../../../hooks/useDataPropBinding';
 
 interface KVComponentProps {
   component: ComponentData;

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowRight, Check, Info } from 'lucide-react';
-import { ComponentData } from '../../types';
-import { useComponentData } from '../../hooks/useComponentData';
-import { useDataPropBinding } from '../../hooks/useDataPropBinding';
+import { ComponentData } from '../../../types';
+import { useComponentData } from '../../../hooks/useComponentData';
+import { useDataPropBinding } from '../../../hooks/useDataPropBinding';
 
 interface PricingComponentProps {
   component: ComponentData;

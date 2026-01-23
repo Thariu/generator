@@ -3,8 +3,8 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { BaseEditorProps, useBaseEditor } from '../BaseEditor';
-import ImageDropZone from '../../UI/ImageDropZone';
-import { ImageUploadResult } from '../../../utils/imageHandler';
+import ImageDropZone from '../../../UI/ImageDropZone';
+import { ImageUploadResult } from '../../../../utils/imageHandler';
 
 export const KVEditor: React.FC<BaseEditorProps> = (props) => {
   const { component, styles, handlePropChange, handleFocus, handleBlur } = useBaseEditor(props);
