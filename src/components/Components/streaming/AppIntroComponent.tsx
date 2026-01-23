@@ -42,7 +42,7 @@ const AppIntroComponent: React.FC<AppIntroComponentProps> = ({ component }) => {
         <div className='viewingMethod2'>
           <div className="viewindFlex">
             <div className='viewingItem'>
-              <div className='viewingBallon accentColor'>
+              <div className='viewingBallon'>
                 {balloonText || 'ブラックリスト'}をマイリスト登録すれば便利！
               </div>
               <div className='innerFlex'>
