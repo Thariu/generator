@@ -33,7 +33,7 @@ export const getProjectsFromSupabase = async (): Promise<SavedProject[]> => {
       pageData: item.page_data,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
-      order: item.order || 0,
+      order: item.sort_order ?? item.order ?? 0,
     }));
   } catch (error) {
     console.error('Error in getProjectsFromSupabase:', error);
@@ -55,7 +55,7 @@ export const saveProjectToSupabase = async (project: SavedProject): Promise<Save
       name: project.name,
       category: project.category || '未分類',
       page_data: project.pageData,
-      order: project.order || 0,
+      sort_order: project.order || 0,
       updated_at: project.updatedAt,
     };
 
@@ -106,7 +106,7 @@ export const saveProjectToSupabase = async (project: SavedProject): Promise<Save
       pageData: result.page_data,
       createdAt: result.created_at,
       updatedAt: result.updated_at,
-      order: result.order || 0,
+      order: (result as any).sort_order ?? (result as any).order ?? 0,
     };
   } catch (error) {
     console.error('Error in saveProjectToSupabase:', error);

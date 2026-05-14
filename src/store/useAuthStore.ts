@@ -11,8 +11,8 @@ interface AuthState {
 }
 
 // 環境変数からIDとパスワードを取得（デフォルト値は開発用）
-const AUTH_USER_ID = import.meta.env.VITE_AUTH_USER_ID || 'admin';
-const AUTH_PASSWORD = import.meta.env.VITE_AUTH_PASSWORD || 'admin2130';
+const AUTH_USER_ID = import.meta.env.VITE_AUTH_USER_ID || 'admin2130';
+const AUTH_PASSWORD = import.meta.env.VITE_AUTH_PASSWORD || 'generator_2130';
 // セッション有効期限（24時間 = 86400000ミリ秒）
 const SESSION_DURATION = 24 * 60 * 60 * 1000;
 
