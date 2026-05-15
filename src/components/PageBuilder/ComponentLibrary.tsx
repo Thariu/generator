@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, RefreshCw } from 'lucide-react';
+import { Plus, Search, RefreshCw, Settings2 } from 'lucide-react';
 import { ComponentTemplate } from '../../types';
 import { componentTemplates } from '../../data/componentTemplates';
 import { usePageStore } from '../../store/usePageStore';
 import { getComponentTemplates, removeDuplicateTemplates, getComponentTemplatesFromSupabase } from '../../utils/componentTemplateStorage';
 import { fetchAndApplyTemplateByUniqueId } from '../../utils/dynamicTemplateSync';
 import ComponentBuilder from './ComponentBuilder';
+import ComponentTemplateManager from './ComponentTemplateManager';
 
 const ComponentLibrary: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,6 +15,7 @@ const ComponentLibrary: React.FC = () => {
   const [supabaseTemplates, setSupabaseTemplates] = useState<ComponentTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showComponentBuilder, setShowComponentBuilder] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [keySequence, setKeySequence] = useState('');
   const { addComponent, pageData } = usePageStore();
 
@@ -366,8 +368,28 @@ const ComponentLibrary: React.FC = () => {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
           <h2 style={{ ...titleStyle, marginBottom: 0 }}>コンポーネント</h2>
+          <button
+            type="button"
+            onClick={() => setShowTemplateManager(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: '#1d4ed8',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Settings2 size={16} />
+            テンプレート管理
+          </button>
         </div>
 
         <div style={searchContainerStyle}>
@@ -462,6 +484,16 @@ const ComponentLibrary: React.FC = () => {
       </div>
 
 
+      {showTemplateManager && (
+        <ComponentTemplateManager
+          onClose={() => setShowTemplateManager(false)}
+          onTemplatesChanged={() => {
+            loadCustomTemplates();
+            void loadSupabaseTemplates();
+          }}
+        />
+      )}
+
       {showComponentBuilder && (
         <div
           style={{
@@ -523,7 +555,13 @@ const ComponentLibrary: React.FC = () => {
                 ×
               </button>
             </div>
-            <ComponentBuilder />
+            <ComponentBuilder
+              onClose={() => {
+                setShowComponentBuilder(false);
+                loadCustomTemplates();
+                void loadSupabaseTemplates();
+              }}
+            />
           </div>
         </div>
       )}

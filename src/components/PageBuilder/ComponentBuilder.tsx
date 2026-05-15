@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Download, Copy, Check, Code, Wand2, Eye, AlertTriangle, History, Save } from 'lucide-react';
 import {
   validateComponentNameRomanized,
@@ -8,11 +8,13 @@ import {
 import {
   addComponentTemplate,
   getComponentTemplates,
-  getComponentTemplateByName,
   getComponentVersionHistory,
   getComponentTemplateByVersion,
+  getLatestComponentTemplateByUniqueId,
   saveComponentTemplateToSupabase,
+  type ComponentTemplateData,
 } from '../../utils/componentTemplateStorage';
+import { propSchemaToPropFields } from '../../utils/componentTemplateMapper';
 import { componentTemplates } from '../../data/componentTemplates';
 import ComponentPreview from './ComponentPreview';
 import { validatePropFields, formatValidationMessages, PropField as ValidationPropField } from '../../utils/propValidation';
@@ -517,7 +519,20 @@ const styles = {
   } as React.CSSProperties,
 };
 
-const ComponentBuilder: React.FC = () => {
+export interface ComponentBuilderProps {
+  mode?: 'create' | 'edit';
+  editUniqueId?: string;
+  onClose?: () => void;
+  onSaved?: () => void;
+}
+
+const ComponentBuilder: React.FC<ComponentBuilderProps> = ({
+  mode = 'create',
+  editUniqueId,
+  onClose,
+  onSaved,
+}) => {
+  const isEditMode = mode === 'edit' && Boolean(editUniqueId);
   // CATEGORY_ROMANIZED_MAPを動的に生成
   const CATEGORY_ROMANIZED_MAP = useMemo(() => {
     const map: Record<string, string> = {};
@@ -584,8 +599,54 @@ const ComponentBuilder: React.FC = () => {
   const [saveAsDraft, setSaveAsDraft] = useState(true);
   const [versionHistory, setVersionHistory] = useState<any[]>([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
-  
+  const [editingUniqueId, setEditingUniqueId] = useState<string | null>(editUniqueId ?? null);
+  const [editingSectionId, setEditingSectionId] = useState('');
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+
   const { pageData, addComponent } = usePageStore();
+
+  const applyLoadedTemplate = (template: ComponentTemplateData) => {
+    setEditingUniqueId(template.uniqueId);
+    setEditingSectionId(template.sectionId);
+    setComponentName(template.nameRomanized || template.name);
+    setDisplayName(template.displayName);
+    setCategory(template.category);
+    setCategoryRomanized(template.categoryRomanized);
+    setIsNewCategory(false);
+    setDescription(template.description || '');
+    setThumbnailUrl(template.thumbnailUrl || '');
+    setCssFiles(template.cssFiles || []);
+    setJsFiles(template.jsFiles || []);
+    setCustomCssCode(template.customCssCode || '');
+    setHtmlCode(template.htmlMarkup || template.codeTemplate || '');
+    setPropFields(propSchemaToPropFields(template.propSchema || []) as PropField[]);
+    setGeneratedCode(template.codeTemplate || '');
+    setStep('html');
+    setIsSaved(false);
+  };
+
+  useEffect(() => {
+    if (!isEditMode || !editUniqueId) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoadingTemplate(true);
+      try {
+        const template = await getLatestComponentTemplateByUniqueId(editUniqueId);
+        if (cancelled) return;
+        if (!template) {
+          alert('テンプレートが見つかりませんでした');
+          onClose?.();
+          return;
+        }
+        applyLoadedTemplate(template);
+      } finally {
+        if (!cancelled) setIsLoadingTemplate(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditMode, editUniqueId, onClose]);
 
   const parseHtmlTags = (html: string) => {
     const tags: Array<{ tag: string; fullElement: string; position: { start: number; end: number }; tagName: string }> = [];
@@ -1714,20 +1775,20 @@ export default ${componentName};`;
     const finalCategory = isNewCategory ? newCategoryName.trim() : category;
     const finalCategoryRomanized = isNewCategory ? newCategoryRomanized.trim() : categoryRomanized;
 
-    // 一意なIDとメタデータを生成
-    const metadata = generateComponentMetadata(
-      finalCategory,
-      finalCategoryRomanized,
-      componentName
-    );
+    const metadata = isEditMode && editingUniqueId
+      ? {
+          uniqueId: editingUniqueId,
+          sectionId: editingSectionId || generateComponentMetadata(finalCategory, finalCategoryRomanized, componentName).sectionId,
+        }
+      : generateComponentMetadata(finalCategory, finalCategoryRomanized, componentName);
 
-    // unique_idの重複チェック
-    const existingTemplates = getComponentTemplates();
-    const existingComponent = existingTemplates.find(t => t.uniqueId === metadata.uniqueId);
-
-    if (existingComponent) {
-      alert(`このunique_id: ${metadata.uniqueId} は既に使用されています。\n既存のコンポーネント: ${existingComponent.displayName}\n\n異なるコンポーネント名またはカテゴリを選択してください。`);
-      return;
+    if (!isEditMode) {
+      const existingTemplates = getComponentTemplates();
+      const existingComponent = existingTemplates.find(t => t.uniqueId === metadata.uniqueId);
+      if (existingComponent) {
+        alert(`このunique_id: ${metadata.uniqueId} は既に使用されています。\n既存のコンポーネント: ${existingComponent.displayName}\n\n異なるコンポーネント名またはカテゴリを選択してください。`);
+        return;
+      }
     }
 
     const defaultProps: Record<string, any> = {};
@@ -1949,7 +2010,8 @@ export default ${componentName};`;
         }
       }
 
-      // 5. ローカルAPIを呼び出してコンポーネントファイルとCSSファイルを自動作成
+      // 5. ローカルAPI（新規作成時のみ。dynamic-template は Supabase 駆動のため編集時はスキップ可）
+      if (!isEditMode) {
       try {
         if (finalGeneratedCode) {
           const response = await fetch('/api/create-component', {
@@ -2049,10 +2111,9 @@ export default ${componentName};`;
           URL.revokeObjectURL(url);
         }
       }
+      }
 
-      // 6. 関連ファイル更新ガイドのダウンロード - 削除（自動化されたため不要）
-
-      // 7. ページにコンポーネントを自動追加（Supabase 駆動 dynamic-template）
+      if (!isEditMode) {
       try {
         const newComponent = {
           id: `dynamic-template-${Date.now()}`,
@@ -2062,11 +2123,10 @@ export default ${componentName};`;
           templateId: supabaseSaved?.supabaseId || supabaseSaved?.id || savedTemplate.supabaseId || savedTemplate.id,
           templateUniqueId: metadata.uniqueId,
         };
-
         addComponent(newComponent);
       } catch (error) {
         console.warn('ページへのコンポーネント追加に失敗しました:', error);
-        // エラーが発生しても続行
+      }
       }
 
       if (isNewCategory && newCategoryName.trim()) {
@@ -2081,10 +2141,15 @@ export default ${componentName};`;
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
       
-      const saveMessage = saveAsDraft 
-        ? 'コンポーネントがドラフト版として保存され、ページに追加されました'
-        : 'コンポーネントがリリース版として保存され、ページに追加されました';
+      const saveMessage = isEditMode
+        ? saveAsDraft
+          ? 'テンプレートを更新しました（ドラフト・新バージョン）'
+          : 'テンプレートを更新しました（リリース・新バージョン）'
+        : saveAsDraft
+          ? 'コンポーネントがドラフト版として保存され、ページに追加されました'
+          : 'コンポーネントがリリース版として保存され、ページに追加されました';
       alert(saveMessage);
+      onSaved?.();
     } catch (error) {
       console.error('Error saving component:', error);
       alert(`保存エラー: ${error}`);
@@ -2112,9 +2177,10 @@ export default ${componentName};`;
       setCssFiles(template.cssFiles);
       setJsFiles(template.jsFiles);
       setCustomCssCode(template.customCssCode || '');
-      setHtmlCode(template.codeTemplate);
-      // propFieldsの復元が必要なので、コード生成から送信する必要がある
-      setGeneratedCode(template.codeTemplate);
+      setHtmlCode(template.htmlMarkup || template.codeTemplate || '');
+      setPropFields(propSchemaToPropFields(template.propSchema || []) as PropField[]);
+      setGeneratedCode(template.codeTemplate || '');
+      setStep('html');
       alert(`バージョン ${version} を読み込みました`);
     }
   };
@@ -2256,14 +2322,52 @@ Unique ID: ${metadata.uniqueId}
     URL.revokeObjectURL(url);
   };
 
+  const isEmbedded = Boolean(onClose);
+
+  if (isLoadingTemplate) {
+    return (
+      <div style={{ ...styles.container, padding: '48px', textAlign: 'center' }}>
+        <p style={{ color: '#6b7280' }}>テンプレートを読み込み中…</p>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>コンポーネントビルダー</h2>
-        <p style={styles.subtitle}>
-          基本情報を入力し、HTMLコードを貼り付けて、対話式プロパティを定義できます
-        </p>
-      </div>
+      {!isEmbedded && (
+        <div style={{ ...styles.header, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={styles.title}>{isEditMode ? 'テンプレートを編集' : 'コンポーネントビルダー'}</h2>
+            <p style={styles.subtitle}>
+              {isEditMode
+                ? `unique_id: ${editingUniqueId ?? editUniqueId} — 保存すると新バージョンとして Supabase に記録され、使用中のページに反映されます`
+                : '基本情報を入力し、HTMLコードを貼り付けて、対話式プロパティを定義できます'}
+            </p>
+          </div>
+          {isEditMode && editingUniqueId && (
+            <button
+              type="button"
+              style={{ ...styles.generateButton, padding: '8px 14px', fontSize: '13px', flexShrink: 0 }}
+              onClick={() => void loadVersionHistory(editingUniqueId)}
+            >
+              <History size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+              履歴
+            </button>
+          )}
+        </div>
+      )}
+      {isEmbedded && isEditMode && editingUniqueId && (
+        <div style={{ ...styles.header, display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            style={{ ...styles.generateButton, padding: '8px 14px', fontSize: '13px' }}
+            onClick={() => void loadVersionHistory(editingUniqueId)}
+          >
+            <History size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+            バージョン履歴
+          </button>
+        </div>
+      )}
 
       <div style={styles.stepsContainer}>
         <div style={{ ...styles.step, ...(step === 'html' ? styles.stepActive : {}) }}>
@@ -2297,6 +2401,8 @@ Unique ID: ${metadata.uniqueId}
                 value={componentName}
                 onChange={(e) => setComponentName(e.target.value)}
                 placeholder="custom-hero（半角英数字、ハイフンのみ）"
+                readOnly={isEditMode}
+                disabled={isEditMode}
               />
               <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                 半角英数字とハイフン、スペースのみ使用可、ESS IDとコンポーネント識別子に使用されます
@@ -3538,12 +3644,14 @@ Unique ID: ${metadata.uniqueId}
                 ) : (
                   <>
                     <Save size={16} />
-                    コンポーネント追加
+                    {isEditMode ? '変更を保存' : 'コンポーネント追加'}
                   </>
                 )}
               </button>
               <p style={styles.saveHint}>
-                追加後、コンポーネントライブラリに表示されます
+                {isEditMode
+                  ? '保存後、同じ unique_id を使うページ上のブロックに反映されます（最大約15秒）'
+                  : '追加後、コンポーネントライブラリに表示されます（公開が必要な場合あり）'}
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 // Component Template localStorage and Supabase management
 
 import { supabase } from '../lib/supabase';
+import { mapDbRowToComponentTemplateData } from './componentTemplateMapper';
 
 export interface ComponentTemplateData {
   id: string;
@@ -154,37 +155,67 @@ export const getComponentTemplatesFromSupabase = async (): Promise<ComponentTemp
       return [];
     }
 
-    return (data || []).map((item: any) => ({
-      id: item.id,
-      supabaseId: item.id,
-      name: item.name_romanized || item.name,
-      nameRomanized: item.name_romanized || item.name,
-      displayName: item.display_name,
-      category: item.category,
-      categoryRomanized: item.category_romanized || item.category.toLowerCase(),
-      uniqueId: item.unique_id || `${item.category_romanized || item.category}_${item.name_romanized || item.name}`,
-      sectionId: item.section_id || `${item.unique_id || item.name}Area`,
-      thumbnailUrl: item.thumbnail_url,
-      description: item.description,
-      codeTemplate: item.code_template,
-      htmlMarkup: item.html_markup ?? undefined,
-      defaultProps: item.default_props || {},
-      propSchema: item.prop_schema || [],
-      styleSchema: item.style_schema || [],
-      cssFiles: item.css_files || [],
-      jsFiles: item.js_files || [],
-      customCssCode: item.custom_css_code,
-      isActive: item.is_active !== false,
-      version: item.version || 1,
-      isDraft: item.is_draft || false,
-      parentId: item.parent_id,
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
-    }));
+    return (data || []).map((item: Record<string, unknown>) =>
+      mapDbRowToComponentTemplateData(item)
+    );
   } catch (error) {
     console.error('Error in getComponentTemplatesFromSupabase:', error);
     return [];
   }
+};
+
+export type ManagedTemplateFilter = 'all' | 'released' | 'draft';
+
+/**
+ * テンプレート管理画面用: unique_id ごとに最新バージョン1件を返す
+ */
+export const getManagedComponentTemplatesFromSupabase = async (
+  filter: ManagedTemplateFilter = 'all'
+): Promise<ComponentTemplateData[]> => {
+  if (!supabase) return [];
+
+  try {
+    let query = supabase
+      .from('component_templates')
+      .select('*')
+      .eq('is_active', true)
+      .order('version', { ascending: false });
+
+    if (filter === 'released') {
+      query = query.eq('is_draft', false);
+    } else if (filter === 'draft') {
+      query = query.eq('is_draft', true);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('getManagedComponentTemplatesFromSupabase:', error);
+      return [];
+    }
+
+    const byUniqueId = new Map<string, ComponentTemplateData>();
+    for (const row of data || []) {
+      const uid = row.unique_id as string;
+      if (!uid || byUniqueId.has(uid)) continue;
+      byUniqueId.set(uid, mapDbRowToComponentTemplateData(row as Record<string, unknown>));
+    }
+
+    return Array.from(byUniqueId.values()).sort((a, b) =>
+      (b.updatedAt || '').localeCompare(a.updatedAt || '')
+    );
+  } catch (e) {
+    console.error('getManagedComponentTemplatesFromSupabase', e);
+    return [];
+  }
+};
+
+/** 編集用: unique_id の最新バージョンを ComponentTemplateData で取得 */
+export const getLatestComponentTemplateByUniqueId = async (
+  uniqueId: string
+): Promise<ComponentTemplateData | null> => {
+  const row = await fetchLatestComponentTemplateRowByUniqueId(uniqueId);
+  if (!row) return null;
+  return mapDbRowToComponentTemplateData(row);
 };
 
 /**
@@ -371,33 +402,7 @@ export const getComponentTemplateByVersion = async (
       return null;
     }
 
-    return {
-      id: data.id,
-      supabaseId: data.id,
-      name: data.name_romanized || data.name,
-      nameRomanized: data.name_romanized || data.name,
-      displayName: data.display_name,
-      category: data.category,
-      categoryRomanized: data.category_romanized || data.category.toLowerCase(),
-      uniqueId: data.unique_id,
-      sectionId: data.section_id,
-      thumbnailUrl: data.thumbnail_url,
-      description: data.description,
-      codeTemplate: data.code_template,
-      htmlMarkup: data.html_markup ?? undefined,
-      defaultProps: data.default_props || {},
-      propSchema: data.prop_schema || [],
-      styleSchema: data.style_schema || [],
-      cssFiles: data.css_files || [],
-      jsFiles: data.js_files || [],
-      customCssCode: data.custom_css_code,
-      isActive: data.is_active !== false,
-      version: data.version || 1,
-      isDraft: data.is_draft || false,
-      parentId: data.parent_id,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
+    return mapDbRowToComponentTemplateData(data as Record<string, unknown>);
   } catch (error) {
     console.error('Error in getComponentTemplateByVersion:', error);
     return null;
