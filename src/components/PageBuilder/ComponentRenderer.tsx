@@ -195,6 +195,13 @@ const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
   };
 
   const renderComponent = () => {
+    if (component.type === 'dynamic-template') {
+      const Dynamic = componentMap['DynamicTemplateComponent'];
+      if (Dynamic) {
+        return <Dynamic {...commonProps} />;
+      }
+    }
+
     // templateIdに基づいて適切なコンポーネントを判定（同じカテゴリ内の複数コンポーネント対応）
     if (component.templateId) {
       let componentName: string | null = null;

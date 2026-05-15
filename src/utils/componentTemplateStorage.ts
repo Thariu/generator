@@ -14,6 +14,8 @@ export interface ComponentTemplateData {
   thumbnailUrl?: string;
   description?: string;
   codeTemplate: string;
+  /** ランタイム用 HTML（data-prop 付き）。Supabase の html_markup と対応 */
+  htmlMarkup?: string;
   defaultProps: Record<string, any>;
   propSchema: any[];
   styleSchema?: any[];
@@ -165,6 +167,7 @@ export const getComponentTemplatesFromSupabase = async (): Promise<ComponentTemp
       thumbnailUrl: item.thumbnail_url,
       description: item.description,
       codeTemplate: item.code_template,
+      htmlMarkup: item.html_markup ?? undefined,
       defaultProps: item.default_props || {},
       propSchema: item.prop_schema || [],
       styleSchema: item.style_schema || [],
@@ -192,8 +195,8 @@ export const saveComponentTemplateToSupabase = async (
   isDraft: boolean = true
 ): Promise<ComponentTemplateData | null> => {
   if (!supabase) {
-    console.warn('Supabase is not configured, saving to localStorage only');
-    return addComponentTemplate(template);
+    console.warn('Supabase is not configured');
+    return null;
   }
 
   try {
@@ -222,6 +225,7 @@ export const saveComponentTemplateToSupabase = async (
         thumbnail_url: template.thumbnailUrl,
         description: template.description,
         code_template: template.codeTemplate,
+        html_markup: template.htmlMarkup ?? '',
         default_props: template.defaultProps,
         prop_schema: template.propSchema,
         style_schema: template.styleSchema || [],
@@ -238,8 +242,7 @@ export const saveComponentTemplateToSupabase = async (
 
     if (error) {
       console.error('Error saving component template to Supabase:', error);
-      // フォールバック: localStorageに保存
-      return addComponentTemplate(template);
+      return null;
     }
 
     return {
@@ -254,8 +257,7 @@ export const saveComponentTemplateToSupabase = async (
     };
   } catch (error) {
     console.error('Error in saveComponentTemplateToSupabase:', error);
-    // フォールバック: localStorageに保存
-    return addComponentTemplate(template);
+    return null;
   }
 };
 
@@ -283,6 +285,32 @@ export const releaseComponentTemplate = async (supabaseId: string): Promise<bool
   } catch (error) {
     console.error('Error in releaseComponentTemplate:', error);
     return false;
+  }
+};
+
+/**
+ * 同一 logical テンプレートの最新バージョン行（Realtime 反映・描画用）
+ */
+export const fetchLatestComponentTemplateRowByUniqueId = async (
+  uniqueId: string
+): Promise<Record<string, any> | null> => {
+  if (!supabase || !uniqueId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('component_templates')
+      .select('*')
+      .eq('unique_id', uniqueId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.error('fetchLatestComponentTemplateRowByUniqueId:', error);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.error('fetchLatestComponentTemplateRowByUniqueId', e);
+    return null;
   }
 };
 
@@ -356,6 +384,7 @@ export const getComponentTemplateByVersion = async (
       thumbnailUrl: data.thumbnail_url,
       description: data.description,
       codeTemplate: data.code_template,
+      htmlMarkup: data.html_markup ?? undefined,
       defaultProps: data.default_props || {},
       propSchema: data.prop_schema || [],
       styleSchema: data.style_schema || [],

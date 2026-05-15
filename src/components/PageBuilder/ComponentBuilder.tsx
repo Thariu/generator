@@ -10,13 +10,18 @@ import {
   getComponentTemplates,
   getComponentTemplateByName,
   getComponentVersionHistory,
-  getComponentTemplateByVersion
+  getComponentTemplateByVersion,
+  saveComponentTemplateToSupabase,
 } from '../../utils/componentTemplateStorage';
 import { componentTemplates } from '../../data/componentTemplates';
 import ComponentPreview from './ComponentPreview';
 import { validatePropFields, formatValidationMessages, PropField as ValidationPropField } from '../../utils/propValidation';
 import { usePageStore } from '../../store/usePageStore';
 import { ComponentType } from '../../types';
+import {
+  applyTemplateFromLocalPayload,
+  refreshDynamicTemplateNow,
+} from '../../utils/dynamicTemplateSync';
 import { scopeCSSWithSectionId, generateCSSTemplate, appendCustomCSSToFile, isCSSGenerated } from '../../utils/cssTemplateGenerator';
 import { generateAndSaveFieldDefinition } from '../../utils/fieldDefinitionStorage';
 import { generateAndSaveEditorFile, generateEditorFileName } from '../../utils/editorFileGenerator';
@@ -1830,6 +1835,8 @@ export default ${componentName};`;
       console.log('生成されたコンポーネントファイル名', componentFileName);
       console.log('生成されたコード', finalGeneratedCode);
 
+      const htmlMarkupSource = htmlCode || '';
+
       const templateData = {
         name: componentName,
         nameRomanized: componentName,
@@ -1841,6 +1848,7 @@ export default ${componentName};`;
         description,
         thumbnailUrl: thumbnailUrl,
         codeTemplate: finalGeneratedCode,
+        htmlMarkup: htmlMarkupSource,
         defaultProps: defaultProps,
         propSchema: propSchema,
         cssFiles: cssFiles,
@@ -1849,8 +1857,24 @@ export default ${componentName};`;
         isActive: true,
       };
 
-      // 2. localStorageに保存
-      const savedTemplate = addComponentTemplate(templateData);
+      const supabaseSaved = await saveComponentTemplateToSupabase(templateData, saveAsDraft);
+
+      const savedTemplate = addComponentTemplate({
+        ...templateData,
+        ...(supabaseSaved?.supabaseId ? { supabaseId: supabaseSaved.supabaseId } : {}),
+      });
+
+      applyTemplateFromLocalPayload(metadata.uniqueId, {
+        htmlMarkup: htmlMarkupSource,
+        sectionId: metadata.sectionId,
+        customCssCode: customCssCode.trim() || undefined,
+        cssFiles,
+        jsFiles,
+        defaultProps,
+        rowId: supabaseSaved?.supabaseId || savedTemplate.id,
+        updatedAt: supabaseSaved?.updatedAt || savedTemplate.updatedAt,
+      });
+      refreshDynamicTemplateNow(metadata.uniqueId);
 
       // 2.5. propSchemaからフィールド定義を自動生成して保存
       // 注意: この時点ではまだvalidComponentTypeが決定されていないため、
@@ -2028,47 +2052,17 @@ export default ${componentName};`;
 
       // 6. 関連ファイル更新ガイドのダウンロード - 削除（自動化されたため不要）
 
-      // 7. ページにコンポーネントを自動追加
+      // 7. ページにコンポーネントを自動追加（Supabase 駆動 dynamic-template）
       try {
-        // componentNameからタイプを生成（例: "programHero" -> "program-hero"）
-        // ComponentLibraryと同じ方法でタイプを決定
-        const componentTypeFromName = componentName
-          .replace(/Component$/i, '')
-          .replace(/([A-Z])/g, '-$1')
-          .toLowerCase()
-          .replace(/^-/, '');
-        
-        // 既存のComponentTypeに存在するかチェック（componentRegistryから取得）
-        const existingTypes: ComponentType[] = Object.keys(COMPONENT_TYPE_MAP) as ComponentType[];
-        
-        // カテゴリマッピングを使用してタイプを決定
-        const categoryTypeMap: Record<string, ComponentType> = {
-          'kv': 'kv',
-          'pricing': 'pricing',
-          'streaming': 'app-intro',
-          'faq': 'test',
-          'footer': 'footer',
-          'test': 'test',
-        };
-        
-        let validComponentType: ComponentType = categoryTypeMap[finalCategoryRomanized] || 
-          (existingTypes.includes(componentTypeFromName as ComponentType) 
-            ? (componentTypeFromName as ComponentType)
-            : 'test' as ComponentType); // フォールバック
-        
-        // componentTemplates.tsから該当するテンプレートを取得してtemplateIdを設定
-        const matchingTemplate = componentTemplates.find(t => 
-          t.uniqueId === metadata.uniqueId || t.id === metadata.uniqueId
-        );
-        
         const newComponent = {
-          id: `${validComponentType}-${Date.now()}`,
-          type: validComponentType,
+          id: `dynamic-template-${Date.now()}`,
+          type: 'dynamic-template' as ComponentType,
           props: { ...defaultProps },
           style: { theme: 'light' as const, colorScheme: 'blue' as const },
-          templateId: matchingTemplate?.id || metadata.uniqueId, // テンプレートIDを保存
+          templateId: supabaseSaved?.supabaseId || supabaseSaved?.id || savedTemplate.supabaseId || savedTemplate.id,
+          templateUniqueId: metadata.uniqueId,
         };
-        
+
         addComponent(newComponent);
       } catch (error) {
         console.warn('ページへのコンポーネント追加に失敗しました:', error);

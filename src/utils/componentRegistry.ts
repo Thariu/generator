@@ -13,6 +13,8 @@ export const COMPONENT_TYPE_MAP = {
   'pricing': 'PricingComponent',
   'app-intro': 'AppIntroComponent',
   'tel': 'tel',
+  /** Supabase 駆動セクション（html_markup + Realtime） */
+  'dynamic-template': 'DynamicTemplateComponent',
 } as const;
 
 // ComponentTypeをマッピングから自動生成

@@ -3,13 +3,15 @@ import { Plus, Search, RefreshCw } from 'lucide-react';
 import { ComponentTemplate } from '../../types';
 import { componentTemplates } from '../../data/componentTemplates';
 import { usePageStore } from '../../store/usePageStore';
-import { getComponentTemplates, removeDuplicateTemplates } from '../../utils/componentTemplateStorage';
+import { getComponentTemplates, removeDuplicateTemplates, getComponentTemplatesFromSupabase } from '../../utils/componentTemplateStorage';
+import { fetchAndApplyTemplateByUniqueId } from '../../utils/dynamicTemplateSync';
 import ComponentBuilder from './ComponentBuilder';
 
 const ComponentLibrary: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [customTemplates, setCustomTemplates] = useState<ComponentTemplate[]>([]);
+  const [supabaseTemplates, setSupabaseTemplates] = useState<ComponentTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showComponentBuilder, setShowComponentBuilder] = useState(false);
   const [keySequence, setKeySequence] = useState('');
@@ -34,9 +36,19 @@ const ComponentLibrary: React.FC = () => {
       return !componentTemplateIds.has(template.id) && 
              !(template.uniqueId && componentTemplateIds.has(template.uniqueId));
     });
+
+    const filteredSupabase = supabaseTemplates.filter((template) => {
+      if (componentTemplateIds.has(template.id)) return false;
+      if (template.uniqueId && componentTemplateIds.has(template.uniqueId)) return false;
+      const localIds = new Set(
+        filteredCustomTemplates.map((t) => t.uniqueId).filter(Boolean) as string[]
+      );
+      if (template.uniqueId && localIds.has(template.uniqueId)) return false;
+      return true;
+    });
     
-    return [...componentTemplates, ...filteredCustomTemplates];
-  }, [componentTemplates, customTemplates]);
+    return [...componentTemplates, ...filteredCustomTemplates, ...filteredSupabase];
+  }, [componentTemplates, customTemplates, supabaseTemplates]);
   
   const allTemplates = uniqueTemplates.filter(
     template => !excludedCategories.includes(template.category)
@@ -55,7 +67,42 @@ const ComponentLibrary: React.FC = () => {
     }
     
     loadCustomTemplates();
+    loadSupabaseTemplates();
   }, []);
+
+  const refreshActiveDynamicTemplatesOnPage = async () => {
+    const uniqueIds = Array.from(
+      new Set(
+        pageData.components
+          .filter((c) => c.type === 'dynamic-template' && c.templateUniqueId)
+          .map((c) => c.templateUniqueId as string)
+      )
+    );
+    await Promise.all(uniqueIds.map((id) => fetchAndApplyTemplateByUniqueId(id, { force: true })));
+  };
+
+  const loadSupabaseTemplates = async () => {
+    try {
+      const rows = await getComponentTemplatesFromSupabase();
+      const mapped: ComponentTemplate[] = rows.map((item) => ({
+        id: item.supabaseId || item.id,
+        name: item.displayName,
+        description: item.description || '',
+        category: item.category,
+        type: 'dynamic-template',
+        thumbnail: item.thumbnailUrl || '',
+        defaultProps: item.defaultProps || {},
+        uniqueId: item.uniqueId,
+        cssFiles: item.cssFiles,
+        jsFiles: item.jsFiles,
+        sectionId: item.sectionId,
+      }));
+      setSupabaseTemplates(mapped);
+      await refreshActiveDynamicTemplatesOnPage();
+    } catch (e) {
+      console.error('Supabase templates load failed', e);
+    }
+  };
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -85,9 +132,12 @@ const ComponentLibrary: React.FC = () => {
           name: item.displayName,
           description: item.description || '',
           category: item.category,
-          type: item.name.replace('Component', '').toLowerCase(),
+          type: (item.supabaseId || item.htmlMarkup
+            ? 'dynamic-template'
+            : item.name.replace('Component', '').toLowerCase()) as ComponentTemplate['type'],
           thumbnail: item.thumbnailUrl || '',
           defaultProps: item.defaultProps || {},
+          uniqueId: item.uniqueId,
         }));
       setCustomTemplates(templates);
     } catch (error) {
@@ -98,16 +148,18 @@ const ComponentLibrary: React.FC = () => {
   };
 
 
-  // 使用済みコンポーネントIDを取得
-  const usedComponentIds = pageData.components.map(component => {
-    // コンポーネントIDから元のテンプレートIDを推定
-    const componentType = component.type;
-    const matchingTemplate = allTemplates.find(template =>
-      template.type === componentType &&
-      JSON.stringify(template.defaultProps) === JSON.stringify(component.props)
-    );
-    return matchingTemplate?.id || null;
-  }).filter(Boolean);
+  const isTemplateUsedOnPage = (template: ComponentTemplate) => {
+    return pageData.components.some((c) => {
+      if (template.type === 'dynamic-template' && template.uniqueId) {
+        return c.templateUniqueId === template.uniqueId || c.templateId === template.id;
+      }
+      if (c.templateId && c.templateId === template.id) return true;
+      return (
+        c.type === template.type &&
+        JSON.stringify(c.props) === JSON.stringify(template.defaultProps)
+      );
+    });
+  };
 
   const filteredTemplates = allTemplates.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -117,8 +169,7 @@ const ComponentLibrary: React.FC = () => {
   });
 
   const handleAddComponent = (template: ComponentTemplate) => {
-    // 既に使用されているコンポーネントIDの場合は追加しない
-    if (isComponentUsed(template.id)) {
+    if (isTemplateUsedOnPage(template)) {
       return;
     }
 
@@ -127,13 +178,10 @@ const ComponentLibrary: React.FC = () => {
       type: template.type,
       props: { ...template.defaultProps },
       style: { theme: 'light' as const, colorScheme: 'blue' as const },
-      templateId: template.id, // テンプレートIDを保存（同じカテゴリ内の複数コンポーネントを区別するため）
+      templateId: template.id,
+      ...(template.uniqueId ? { templateUniqueId: template.uniqueId } : {}),
     };
     addComponent(newComponent);
-  };
-
-  const isComponentUsed = (templateId: string) => {
-    return usedComponentIds.includes(templateId);
   };
 
   const containerStyle: React.CSSProperties = {
@@ -348,7 +396,7 @@ const ComponentLibrary: React.FC = () => {
 
       <div style={listStyle}>
         {filteredTemplates.map((template) => {
-          const isUsed = isComponentUsed(template.id);
+          const isUsed = isTemplateUsedOnPage(template);
           
           return (
             <div
@@ -431,6 +479,7 @@ const ComponentLibrary: React.FC = () => {
           onClick={() => {
             setShowComponentBuilder(false);
             loadCustomTemplates();
+            void loadSupabaseTemplates();
           }}
         >
           <div
@@ -460,6 +509,7 @@ const ComponentLibrary: React.FC = () => {
                 onClick={() => {
                   setShowComponentBuilder(false);
                   loadCustomTemplates();
+                  void loadSupabaseTemplates();
                 }}
                 style={{
                   padding: '8px',

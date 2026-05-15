@@ -7,6 +7,8 @@ export interface ComponentData {
   props: Record<string, any>;
   style?: ComponentStyle;
   templateId?: string; // テンプレートID（同じカテゴリ内の複数コンポーネントを区別するため）
+  /** Supabase component_templates.unique_id（バージョン横断で Realtime 購読キー） */
+  templateUniqueId?: string;
 }
 
 export interface ComponentStyle {
@@ -83,6 +85,8 @@ export interface ComponentTemplate {
   cssFiles?: string[]; // CSSファイルのリスト
   jsFiles?: string[]; // JSファイルのリスト
   sectionId?: string; // セクションID
+  /** dynamic-template 用。ページ上の templateUniqueId と一致 */
+  templateUniqueId?: string;
 }
 
 export interface DesignPattern {

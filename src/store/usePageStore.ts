@@ -23,6 +23,12 @@ interface PageStore {
   addComponent: (component: ComponentData) => void;
   updateComponent: (id: string, updates: Partial<ComponentData>) => void;
   deleteComponent: (id: string) => void;
+  /** Supabase Realtime: 同一 unique_id の dynamic-template インスタンスの props をテンプレに揃える（履歴に積まない） */
+  syncDynamicTemplateInstancesFromRemote: (
+    templateUniqueId: string,
+    defaultProps: Record<string, any>,
+    latestSupabaseRowId?: string
+  ) => void;
   reorderComponents: (fromIndex: number, toIndex: number) => void;
   selectComponent: (id: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
@@ -156,6 +162,22 @@ export const usePageStore = create<PageStore>((set, get) => ({
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newPageData);
       return { pageData: newPageData, selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId, history: newHistory, historyIndex: newHistory.length - 1 };
+    });
+  },
+
+  syncDynamicTemplateInstancesFromRemote: (templateUniqueId, defaultProps, latestSupabaseRowId) => {
+    set((state) => {
+      const newComponents = state.pageData.components.map((comp) => {
+        if (comp.type !== 'dynamic-template' || comp.templateUniqueId !== templateUniqueId) {
+          return comp;
+        }
+        return {
+          ...comp,
+          props: JSON.parse(JSON.stringify(defaultProps ?? {})) as Record<string, any>,
+          ...(latestSupabaseRowId ? { templateId: latestSupabaseRowId } : {}),
+        };
+      });
+      return { pageData: { ...state.pageData, components: newComponents } };
     });
   },
 
