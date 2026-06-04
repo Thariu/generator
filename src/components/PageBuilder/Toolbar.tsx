@@ -187,7 +187,6 @@ ${cssLinks}
 
   <script src="/global/assets/js/global.js"></script>
   <script src="/global/assets/js/jquery.min.js"></script>
-  <script src="/program/st/promo/generator_common/js/common.js"></script>
 </body>
 </html>`;
 

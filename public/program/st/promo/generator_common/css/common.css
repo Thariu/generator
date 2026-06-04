@@ -124,99 +124,32 @@ a {
   }
 }
 
-/* JavaScript Interaction Classes */
+/* 状態クラス（React コンポーネント用） */
 
-/* アクティブ状態 */
 .is-active {
   /* コンポーネントごとに上書き可能 */
 }
 
-/* 開いている状態 */
 .is-open {
   display: block !important;
 }
 
-/* 非表示状態 */
 .is-hidden {
   display: none !important;
 }
 
-/* 無効状態 */
 .is-disabled {
   opacity: 0.5;
   pointer-events: none;
   cursor: not-allowed;
 }
 
-/* アニメーション中 */
 .is-animating {
   pointer-events: none;
 }
 
-/* 回転アイコン */
-.is-rotated {
-  transform: rotate(180deg) !important;
-}
-
-/* 展開状態 */
 .is-expanded {
   max-height: none !important;
-}
-
-/* アコーディオン用スタイル */
-[data-accordion-content] {
-  transition: max-height 0.3s ease, padding 0.3s ease;
-  overflow: hidden;
-}
-
-[data-accordion-content].is-open {
-  max-height: 1000px !important;
-}
-
-[data-accordion-icon] {
-  transition: transform 0.2s ease;
-}
-
-/* フェードイン・アウトアニメーション */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-/* スライドイン・アウトアニメーション */
-@keyframes slideIn {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes slideOut {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateY(20px);
-    opacity: 0;
-  }
 }
 
 /* トランジション用ユーティリティ */
