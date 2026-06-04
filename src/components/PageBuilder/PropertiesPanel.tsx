@@ -187,8 +187,6 @@ const PropertiesPanel: React.FC = () => {
         if (pattern === 'card') return 'KV カード型';
         if (pattern === 'program-hero') return 'KV-1';
         return 'KV';
-      case 'test':
-        return 'テスト';
       case 'footer':
         return 'フッター';
       case 'pricing':

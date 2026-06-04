@@ -222,7 +222,7 @@ const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
           <div>
             <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>テンプレート管理</h2>
             <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
-              コンポーネント定義の作成・編集・公開
+              dynamic-template の作成・編集・公開（React バリアントは DB のみ・ビルダー編集不可）
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -291,18 +291,32 @@ const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
             <article key={t.uniqueId} style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>{t.displayName}</h3>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    backgroundColor: t.isDraft ? '#fef3c7' : '#d1fae5',
-                    color: t.isDraft ? '#92400e' : '#065f46',
-                    fontWeight: 600,
-                  }}
-                >
-                  {t.isDraft ? 'ドラフト' : '公開済み'}
-                </span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: t.renderMode === 'react' ? '#e0e7ff' : '#f3e8ff',
+                      color: t.renderMode === 'react' ? '#3730a3' : '#6b21a8',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {t.renderMode === 'react' ? `React (${t.componentType || '—'})` : 'Dynamic'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: t.isDraft ? '#fef3c7' : '#d1fae5',
+                      color: t.isDraft ? '#92400e' : '#065f46',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {t.isDraft ? 'ドラフト' : '公開済み'}
+                  </span>
+                </div>
               </div>
               <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#6b7280', fontFamily: 'monospace' }}>
                 {t.uniqueId}
@@ -312,10 +326,12 @@ const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
                 {t.updatedAt ? new Date(t.updatedAt).toLocaleString('ja-JP') : '—'}
               </p>
               <div style={cardActionsStyle}>
+                {t.renderMode !== 'react' && (
                 <button type="button" style={actionBtnStyle} onClick={() => setEditingUniqueId(t.uniqueId)}>
                   <Pencil size={14} />
                   編集
                 </button>
+                )}
                 {t.isDraft && (
                   <button type="button" style={publishBtnStyle} onClick={() => void handlePublish(t)}>
                     <Upload size={14} />

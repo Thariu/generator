@@ -1,4 +1,28 @@
-import type { ComponentTemplateData } from './componentTemplateStorage';
+import { REACT_VARIANT_SEEDS } from '../data/reactVariantSeeds';
+import type { ComponentTemplateData, RenderMode } from './componentTemplateStorage';
+
+const BUILTIN_UNIQUE_IDS = new Set(REACT_VARIANT_SEEDS.map((s) => s.uniqueId));
+
+function inferRenderMode(item: Record<string, unknown>): RenderMode {
+  const mode = item.render_mode as string | undefined;
+  if (mode === 'react' || mode === 'dynamic') return mode;
+
+  if (item.component_type) return 'react';
+
+  const uniqueId = item.unique_id as string | undefined;
+  if (uniqueId && BUILTIN_UNIQUE_IDS.has(uniqueId)) return 'react';
+
+  const html = (item.html_markup as string) || '';
+  if (html.trim()) return 'dynamic';
+
+  return 'dynamic';
+}
+
+function inferComponentType(item: Record<string, unknown>): string | undefined {
+  if (item.component_type) return item.component_type as string;
+  const uniqueId = item.unique_id as string | undefined;
+  return REACT_VARIANT_SEEDS.find((s) => s.uniqueId === uniqueId)?.componentType;
+}
 
 export interface PropFieldLike {
   id: string;
@@ -50,6 +74,8 @@ export function mapDbRowToComponentTemplateData(item: Record<string, unknown>): 
     parentId: item.parent_id as string | undefined,
     createdAt: item.created_at as string,
     updatedAt: item.updated_at as string,
+    renderMode: inferRenderMode(item),
+    componentType: inferComponentType(item),
   };
 }
 

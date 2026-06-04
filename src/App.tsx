@@ -6,6 +6,7 @@ import Canvas from './components/PageBuilder/Canvas';
 import PropertiesPanel from './components/PageBuilder/PropertiesPanel';
 import Toolbar from './components/PageBuilder/Toolbar';
 import AuthScreen from './components/Auth/AuthScreen';
+import { loadReleasedCatalog } from './utils/templateCatalog';
 
 function App() {
   const { previewMode, showComponentLibrary, showPropertiesPanel, syncProjectsFromServer } = usePageStore();
@@ -28,6 +29,12 @@ function App() {
       syncProjectsFromServer();
     }
   }, [syncProjectsFromServer, isAuthenticated, isChecking]);
+
+  useEffect(() => {
+    if (!isChecking && isAuthenticated) {
+      void loadReleasedCatalog();
+    }
+  }, [isAuthenticated, isChecking]);
 
   // 認証チェック中は何も表示しない（またはローディング表示）
   if (isChecking) {

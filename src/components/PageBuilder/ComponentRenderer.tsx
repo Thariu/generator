@@ -1,9 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { ComponentData } from '../../types';
 import { usePageStore } from '../../store/usePageStore';
-import { componentTemplates } from '../../data/componentTemplates';
-import { getComponentTemplates } from '../../utils/componentTemplateStorage';
 import { getComponentName } from '../../utils/componentRegistry';
+import { resolveLegacyTemplateId } from '../../data/reactVariantSeeds';
+import {
+  getCatalogRowById,
+  getCatalogRowByUniqueId,
+  getCssFilesForComponent,
+} from '../../utils/templateCatalog';
 
 interface ComponentRendererProps {
   component: ComponentData;
@@ -55,18 +59,7 @@ const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
     }
 
     try {
-      // componentTemplates.tsから取得
-      const template = componentTemplates.find(t => t.type === component.type);
-      
-      // localStorageからも取得（カスタムテンプレート）
-      const customTemplates = getComponentTemplates();
-      const customTemplate = customTemplates.find(t => {
-        const templateType = t.name.replace('Component', '').toLowerCase();
-        return templateType === component.type;
-      });
-
-      // cssFilesを取得（componentTemplates.tsを優先、型定義にcssFilesがない場合はanyでキャスト）
-      const cssFiles = (template as any)?.cssFiles || customTemplate?.cssFiles || [];
+      const cssFiles = getCssFilesForComponent(component);
 
       // CSSファイルを動的に読み込む
       cssFiles.forEach((cssFile: string) => {
@@ -94,7 +87,7 @@ const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
     } catch (error) {
       console.error('CSSファイルの読み込みに失敗しました:', error);
     }
-  }, [component?.type, component?.id]);
+  }, [component?.type, component?.id, component?.templateId, component?.templateUniqueId]);
 
   const commonProps = {
     component,
@@ -202,21 +195,34 @@ const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
       }
     }
 
+    if (component.templateUniqueId) {
+      const catalogRow = getCatalogRowByUniqueId(component.templateUniqueId);
+      if (catalogRow?.renderMode === 'react' && catalogRow.componentType) {
+        const componentName = getComponentName(
+          catalogRow.componentType as Parameters<typeof getComponentName>[0]
+        );
+        if (componentName && componentMap[componentName]) {
+          const DynamicComponent = componentMap[componentName];
+          return <DynamicComponent {...commonProps} />;
+        }
+      }
+    }
+
     // templateIdに基づいて適切なコンポーネントを判定（同じカテゴリ内の複数コンポーネント対応）
     if (component.templateId) {
       let componentName: string | null = null;
       
-      // componentTemplates.tsから該当するテンプレートを取得
-      const template = componentTemplates.find(t => t.id === component.templateId || t.uniqueId === component.templateId);
-      
-      if (template) {
-        // uniqueIdからコンポーネント名を推測
-        const uniqueId = template.uniqueId || template.id;
-        componentName = getComponentNameFromUniqueId(uniqueId);
+      const catalogRow =
+        getCatalogRowById(component.templateId) ||
+        getCatalogRowByUniqueId(component.templateId);
+
+      if (catalogRow?.renderMode === 'react' && catalogRow.componentType) {
+        componentName = getComponentName(catalogRow.componentType as Parameters<typeof getComponentName>[0]);
+      } else if (catalogRow?.uniqueId) {
+        componentName = getComponentNameFromUniqueId(catalogRow.uniqueId);
       } else {
-        // テンプレートが見つからない場合（コンポーネント作成直後など）、templateIdを直接uniqueIdとして使用
-        // templateIdがuniqueId形式（例：test10_b）の場合、直接コンポーネント名を推測
-        componentName = getComponentNameFromUniqueId(component.templateId);
+        const resolvedId = resolveLegacyTemplateId(component.templateId);
+        componentName = getComponentNameFromUniqueId(resolvedId);
       }
       
       // コンポーネント名から動的にコンポーネントを取得

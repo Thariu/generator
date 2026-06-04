@@ -1,18 +1,15 @@
 /**
- * コンポーネントタイプとコンポーネント名のマッピング
- * このファイルが唯一の情報源となる
- * 
- * コンポーネントビルダーでコンポーネントを作成すると、このファイルが自動的に更新されます
+ * コンポーネントタイプと React コンポーネント名のマッピング（手動メンテナンス）
+ * 新規の React 種別を追加するときのみここを更新する。
+ * dynamic-template は DynamicTemplateComponent のみ（DB 駆動）。
  */
 
 export const COMPONENT_TYPE_MAP = {
   'kv': 'KVComponent',
   'headline': 'HeadlineComponent',
-  'test': 'FAQComponent',
   'footer': 'FooterComponent',
   'pricing': 'PricingComponent',
   'app-intro': 'AppIntroComponent',
-  'tel': 'tel',
   /** Supabase 駆動セクション（html_markup + Realtime） */
   'dynamic-template': 'DynamicTemplateComponent',
 } as const;

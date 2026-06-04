@@ -87,6 +87,10 @@ export interface ComponentTemplate {
   sectionId?: string; // セクションID
   /** dynamic-template 用。ページ上の templateUniqueId と一致 */
   templateUniqueId?: string;
+  /** Supabase component_templates.render_mode */
+  renderMode?: 'dynamic' | 'react';
+  /** render_mode=react のときの ComponentType（kv, pricing 等） */
+  componentType?: string;
 }
 
 export interface DesignPattern {

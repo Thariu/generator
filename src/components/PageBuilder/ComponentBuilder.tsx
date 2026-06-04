@@ -15,7 +15,7 @@ import {
   type ComponentTemplateData,
 } from '../../utils/componentTemplateStorage';
 import { propSchemaToPropFields } from '../../utils/componentTemplateMapper';
-import { componentTemplates } from '../../data/componentTemplates';
+import { getCatalogCache } from '../../utils/templateCatalog';
 import ComponentPreview from './ComponentPreview';
 import { validatePropFields, formatValidationMessages, PropField as ValidationPropField } from '../../utils/propValidation';
 import { usePageStore } from '../../store/usePageStore';
@@ -24,9 +24,7 @@ import {
   applyTemplateFromLocalPayload,
   refreshDynamicTemplateNow,
 } from '../../utils/dynamicTemplateSync';
-import { scopeCSSWithSectionId, generateCSSTemplate, appendCustomCSSToFile, isCSSGenerated } from '../../utils/cssTemplateGenerator';
-import { generateAndSaveFieldDefinition } from '../../utils/fieldDefinitionStorage';
-import { generateAndSaveEditorFile, generateEditorFileName } from '../../utils/editorFileGenerator';
+import { scopeCSSWithSectionId } from '../../utils/cssTemplateGenerator';
 
 interface PropField {
   id: string;
@@ -537,14 +535,12 @@ const ComponentBuilder: React.FC<ComponentBuilderProps> = ({
   const CATEGORY_ROMANIZED_MAP = useMemo(() => {
     const map: Record<string, string> = {};
     
-    // componentTemplates.tsから取得
-    componentTemplates.forEach(t => {
+    getCatalogCache().forEach(t => {
       if (t.category && t.categoryRomanized) {
         map[t.category] = t.categoryRomanized;
       }
     });
-    
-    // localStorageからも取得
+
     const customTemplates = getComponentTemplates();
     customTemplates.forEach(t => {
       if (t.category && t.categoryRomanized) {
@@ -606,6 +602,11 @@ const ComponentBuilder: React.FC<ComponentBuilderProps> = ({
   const { pageData, addComponent } = usePageStore();
 
   const applyLoadedTemplate = (template: ComponentTemplateData) => {
+    if (template.renderMode === 'react') {
+      alert('React バリアントは Component Builder では編集できません。Supabase 上の default_props を更新してください。');
+      onClose?.();
+      return;
+    }
     setEditingUniqueId(template.uniqueId);
     setEditingSectionId(template.sectionId);
     setComponentName(template.nameRomanized || template.name);
@@ -756,9 +757,8 @@ const ComponentBuilder: React.FC<ComponentBuilderProps> = ({
 
   React.useEffect(() => {
     const loadCategories = () => {
-      // componentTemplates.tsからカテゴリを取得
       const categoriesFromTemplates = Array.from(
-        new Set(componentTemplates.map(t => t.category))
+        new Set(getCatalogCache().map((t) => t.category))
       ).filter(Boolean);
 
       // localStorageからもカテゴリを取得
@@ -1887,15 +1887,6 @@ export default ${componentName};`;
     }
 
     try {
-      // 1. コンポーネントファイル名を生成
-      const componentFileName = componentName
-        .split(/[\s-]+/)
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join('') + 'Component.tsx';
-
-      console.log('生成されたコンポーネントファイル名', componentFileName);
-      console.log('生成されたコード', finalGeneratedCode);
-
       const htmlMarkupSource = htmlCode || '';
 
       const templateData = {
@@ -1916,6 +1907,8 @@ export default ${componentName};`;
         jsFiles: jsFiles,
         customCssCode: customCssCode.trim() || undefined,
         isActive: true,
+        renderMode: 'dynamic' as const,
+        componentType: undefined,
       };
 
       const supabaseSaved = await saveComponentTemplateToSupabase(templateData, saveAsDraft);
@@ -1936,42 +1929,6 @@ export default ${componentName};`;
         updatedAt: supabaseSaved?.updatedAt || savedTemplate.updatedAt,
       });
       refreshDynamicTemplateNow(metadata.uniqueId);
-
-      // 2.5. propSchemaからフィールド定義を自動生成して保存
-      // 注意: この時点ではまだvalidComponentTypeが決定されていないため、
-      // 後でページに追加する際に決定されるタイプを使用する
-      // ここでは一時的にcomponentTypeFromNameを使用し、後で更新する
-      let generatedComponentType: string | null = null;
-      let generatedFieldConfig: any = null;
-      
-      if (propSchema && propSchema.length > 0) {
-        try {
-          // コンポーネントタイプを生成（例: "programHero" -> "program-hero"）
-          const componentTypeFromName = componentName
-            .replace(/Component$/i, '')
-            .replace(/([A-Z])/g, '-$1')
-            .toLowerCase()
-            .replace(/^-/, '');
-          
-          // カテゴリマッピングを考慮したタイプを決定
-          const categoryTypeMap: Record<string, string> = {
-            'kv': 'kv',
-            'pricing': 'pricing',
-            'streaming': 'app-intro',
-            'faq': 'test',
-            'footer': 'footer',
-            'test': 'test',
-          };
-          
-          // カテゴリからタイプを決定、なければcomponentTypeFromNameを使用
-          generatedComponentType = categoryTypeMap[finalCategoryRomanized] || componentTypeFromName;
-          
-          generatedFieldConfig = generateAndSaveFieldDefinition(generatedComponentType, propSchema);
-          console.log('フィールド定義を自動生成しました:', generatedComponentType);
-        } catch (error) {
-          console.warn('フィールド定義の生成に失敗しました:', error);
-        }
-      }
 
       // 4. CSSファイルの準備（カスタムCSSがある場合）
       let cssFileName: string | undefined;
@@ -2010,109 +1967,6 @@ export default ${componentName};`;
         }
       }
 
-      // 5. ローカルAPI（新規作成時のみ。dynamic-template は Supabase 駆動のため編集時はスキップ可）
-      if (!isEditMode) {
-      try {
-        if (finalGeneratedCode) {
-          const response = await fetch('/api/create-component', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              componentName,
-              displayName,
-              category: finalCategory,
-              categoryRomanized: finalCategoryRomanized,
-              generatedCode: finalGeneratedCode,
-              uniqueId: metadata.uniqueId,
-              sectionId: metadata.sectionId,
-              cssContent: cssContent,
-              cssFileName: cssFileName,
-              isExistingCategory: isExistingCategoryForCSS,
-              isNewCategory: !isExistingCategoryForCSS,
-              defaultProps: defaultProps,
-              propSchema: propSchema,
-              cssFiles: cssFiles,
-              jsFiles: jsFiles,
-              description: description,
-              thumbnailUrl: thumbnailUrl,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          if (data.success) {
-            console.log('Component file created:', data);
-            
-            // 2.6. エディターファイルを自動生成
-            let editorFileGenerated = false;
-            let editorFileError: string | null = null;
-            
-            if (generatedComponentType && generatedFieldConfig) {
-              try {
-                await generateAndSaveEditorFile(generatedComponentType, generatedFieldConfig, finalCategoryRomanized);
-                editorFileGenerated = true;
-                console.log('エディターファイルを自動生成しました:', generatedComponentType);
-              } catch (error) {
-                editorFileError = error instanceof Error ? error.message : '不明なエラー';
-                console.warn('エディターファイルの生成に失敗しました:', error);
-                // エディターファイルの生成に失敗しても、コンポーネント作成は続行
-              }
-            }
-            
-            // 成功メッセージを構築
-            const createdFiles = [
-              data.fileName,
-              data.cssFileName,
-              ...(generatedComponentType && editorFileGenerated ? [generateEditorFileName(generatedComponentType)] : [])
-            ].filter(Boolean);
-            
-            let successMessage = `コンポーネント「${displayName}」が正常に作成されました！\n\n作成されたファイル:\n${createdFiles.map(f => `- ${f}`).join('\n')}\n\ncomponentTemplates.tsも更新されました。`;
-            
-            if (generatedComponentType) {
-              if (editorFileGenerated) {
-                successMessage += `\n\n✅ エディターファイルも自動生成されました。プロパティパネルで編集可能です。`;
-              } else if (editorFileError) {
-                successMessage += `\n\n⚠️ エディターファイルの生成に失敗しました: ${editorFileError}\nフィールド定義は保存されているため、汎用エディタで編集可能です。`;
-              } else {
-                successMessage += `\n\nℹ️ エディターファイルは生成されませんでした（propSchemaが空の可能性があります）。\n汎用エディタで編集可能です。`;
-              }
-            }
-            
-            alert(successMessage);
-          } else {
-            // ファイル重複エラーの場合
-            if (data.error === 'FILE_EXISTS') {
-              alert(`エラー: ファイル「${data.fileName}」は既に存在します。\n\nファイルパス: ${data.filePath}\n\n別のコンポーネント名またはカテゴリを選択してください。`);
-              throw new Error(data.message || 'ファイルが既に存在します');
-            } else {
-              throw new Error(data.error || data.message || 'コンポーネントの作成に失敗しました');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('コンポーネントファイルの作成に失敗しました:', error);
-        alert(`コンポーネントファイルの作成に失敗しました。\n\nエラー: ${error instanceof Error ? error.message : '不明なエラー'}\n\n開発サーバー（npm run dev）が起動していることを確認してください。`);
-        // フォールバック：ダウンロード
-        if (finalGeneratedCode) {
-          downloadComponentFile(componentName, finalGeneratedCode);
-        }
-        if (cssContent && cssFileName) {
-          const blob = new Blob([cssContent], { type: 'text/css' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = cssFileName;
-          a.click();
-          URL.revokeObjectURL(url);
-        }
-      }
-      }
-
       if (!isEditMode) {
       try {
         const newComponent = {
@@ -2146,8 +2000,8 @@ export default ${componentName};`;
           ? 'テンプレートを更新しました（ドラフト・新バージョン）'
           : 'テンプレートを更新しました（リリース・新バージョン）'
         : saveAsDraft
-          ? 'コンポーネントがドラフト版として保存され、ページに追加されました'
-          : 'コンポーネントがリリース版として保存され、ページに追加されました';
+          ? 'dynamic-template をドラフト保存し、ページに追加しました。公開はテンプレート管理から行ってください。'
+          : 'dynamic-template をリリース保存し、ページに追加しました。ライブラリに表示されます。';
       alert(saveMessage);
       onSaved?.();
     } catch (error) {
@@ -2183,123 +2037,6 @@ export default ${componentName};`;
       setStep('html');
       alert(`バージョン ${version} を読み込みました`);
     }
-  };
-
-  // コンポーネントファイルをダウンロード
-  const downloadComponentFile = (name: string, code: string) => {
-    const blob = new Blob([code], { type: 'text/typescript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${name}.tsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // 関連ファイル更新ガイドを生成・ダウンロード
-  const downloadRelatedFilesGuide = (
-    componentName: string,
-    displayName: string,
-    category: string,
-    categoryRomanized: string,
-    metadata: any,
-    defaultProps: Record<string, any>,
-    propSchema: any[],
-    thumbnailUrlValue: string,
-    cssFilesValue: string[],
-    jsFilesValue: string[]
-  ) => {
-    // ComponentTypeに追加する必要があるかチェック
-    // uniqueIdからコンポーネントタイプを生成（kv_program_hero -> kv-program-hero）
-    const componentType = metadata.uniqueId.replace(/_/g, '-');
-    
-    // 既存のComponentTypeをチェック（componentRegistryから取得）
-    const existingTypes: string[] = Object.keys(COMPONENT_TYPE_MAP);
-    const needsTypeUpdate = !existingTypes.includes(componentType);
-    
-    // componentTemplates.tsに追加するコード
-    const componentTemplateCode = `  {
-    id: '${componentType}',
-    type: '${componentType}' as ComponentType,
-    name: '${componentName}',
-    nameRomanized: '${componentName}',
-    displayName: '${displayName}',
-    description: '${displayName}',
-    thumbnail: '${thumbnailUrlValue || ''}',
-    category: '${category}',
-    categoryRomanized: '${categoryRomanized}',
-    uniqueId: '${metadata.uniqueId}',
-    sectionId: '${metadata.sectionId}',
-    defaultProps: ${JSON.stringify(defaultProps, null, 8).replace(/\n/g, '\n    ')},
-    propSchema: ${JSON.stringify(propSchema, null, 8).replace(/\n/g, '\n    ')},
-    cssFiles: ${JSON.stringify(cssFilesValue)},
-    jsFiles: ${JSON.stringify(jsFilesValue)},
-  },`;
-
-    // types/index.tsに追加する必要がある場合、コードを生成
-    const typeUpdateCode = needsTypeUpdate
-      ? `\n  | '${componentType}'`
-      : '';
-
-    const guide = `# 関連ファイル更新ガイド
-
-## 1. コンポーネントファイルの配置
-
-生成されたコンポーネントファイルを以下の場所に配置してください:
-
-\`src/components/Components/${componentName}.tsx\`
-
-※ 既にダウンロードされたファイルをそのまま配置してください
-
-
-## 2. src/data/componentTemplates.ts の更新
-
-以下のコードを \`componentTemplates\` 配列に追加してください:
-
-\`\`\`typescript
-${componentTemplateCode}
-\`\`\`
-
-注：配列の最後にカンマ！を追加することを忘れないでください
-
-
-## 3. src/utils/componentRegistry.ts の更新
-
-コンポーネントタイプとコンポーネント名のマッピングを追加する必要がある場合
-
-\`\`\`typescript
-export const COMPONENT_TYPE_MAP = {
-  // ... 既存のエントリ ...
-  '${componentType}': '${componentName}',
-  // ... 残りのエントリ ...
-} as const;
-\`\`\`
-
-  ${needsTypeUpdate ? `⚠ 注：'${componentType}': '${componentName}' をCOMPONENT_TYPE_MAPに追加する必要があります。` : `✅'${componentType}' は既存のタイプです。追加不要ですが、確認してください。`}
-
-注：コンポーネントビルダーで「コンポーネント追加」をクリックすると、自動的にcomponentRegistry.tsが更新されます。
-
-
-## 完了
-
-すべてのファイルを更新したら、アプリケーションを起動またはリロードしてください
-新しいコンポーネントがコンポーネントライブラリに表示されるようになります
-
----
-生成日: ${new Date().toLocaleString('ja-JP')}
-コンポーネント名: ${componentName}
-表示名: ${displayName}
-カテゴリ: ${category} (${categoryRomanized})
-Unique ID: ${metadata.uniqueId}
-`;
-
-    const blob = new Blob([guide], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${componentName}_更新ガイチEmd`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const copyToClipboard = async () => {

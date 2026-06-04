@@ -1,7 +1,10 @@
 // Component Template localStorage and Supabase management
 
 import { supabase } from '../lib/supabase';
+import { REACT_VARIANT_SEEDS } from '../data/reactVariantSeeds';
 import { mapDbRowToComponentTemplateData } from './componentTemplateMapper';
+
+export type RenderMode = 'dynamic' | 'react';
 
 export interface ComponentTemplateData {
   id: string;
@@ -31,6 +34,8 @@ export interface ComponentTemplateData {
   isDraft?: boolean;
   parentId?: string;
   supabaseId?: string; // SupabaseのUUID
+  renderMode?: RenderMode;
+  componentType?: string;
 }
 
 export interface ComponentVersion {
@@ -94,47 +99,23 @@ export const deleteComponentTemplate = (id: string): void => {
   saveComponentTemplates(filtered);
 };
 
-/**
- * componentTemplates.tsに存在するコンポーネントと重複するlocalStorageのデータを削除
- */
-export const removeDuplicateTemplates = (componentTemplatesFromFile: Array<{ id?: string; uniqueId?: string }>): number => {
-  const templates = getComponentTemplates();
-  const fileIds = new Set<string>();
-  
-  // componentTemplates.tsのidとuniqueIdを収集
-  componentTemplatesFromFile.forEach(t => {
-    if (t.id) fileIds.add(t.id);
-    if (t.uniqueId) fileIds.add(t.uniqueId);
-  });
-  
-  // 重複するテンプレートをフィルタリング
-  const filtered = templates.filter(t => {
-    return !fileIds.has(t.id) && !(t.uniqueId && fileIds.has(t.uniqueId));
-  });
-  
-  const removedCount = templates.length - filtered.length;
-  
-  if (removedCount > 0) {
-    saveComponentTemplates(filtered);
-  }
-  
-  return removedCount;
-};
-
-export const getComponentTemplateByName = (name: string): ComponentTemplateData | undefined => {
-  const templates = getComponentTemplates();
-  return templates.find(t => t.name === name);
-};
-
-export const getComponentTemplatesByCategory = (category: string): ComponentTemplateData[] => {
-  const templates = getComponentTemplates();
-  return templates.filter(t => t.category === category);
-};
-
 // ==================== Supabase連携機能 ====================
 
+/** unique_id ごとに最新バージョン1件に集約 */
+const dedupeTemplatesByUniqueId = (rows: Record<string, unknown>[]): ComponentTemplateData[] => {
+  const byUniqueId = new Map<string, ComponentTemplateData>();
+  for (const row of rows) {
+    const uid = row.unique_id as string;
+    if (!uid || byUniqueId.has(uid)) continue;
+    byUniqueId.set(uid, mapDbRowToComponentTemplateData(row));
+  }
+  return Array.from(byUniqueId.values()).sort((a, b) =>
+    (b.updatedAt || '').localeCompare(a.updatedAt || '')
+  );
+};
+
 /**
- * Supabaseからコンポーネントテンプレートを取得（リリース版のみ）
+ * Supabaseからコンポーネントテンプレートを取得（リリース版のみ、unique_id 最新版）
  */
 export const getComponentTemplatesFromSupabase = async (): Promise<ComponentTemplateData[]> => {
   if (!supabase) {
@@ -148,19 +129,87 @@ export const getComponentTemplatesFromSupabase = async (): Promise<ComponentTemp
       .select('*')
       .eq('is_active', true)
       .eq('is_draft', false)
-      .order('created_at', { ascending: false });
+      .order('version', { ascending: false });
 
     if (error) {
       console.error('Error fetching component templates from Supabase:', error);
       return [];
     }
 
-    return (data || []).map((item: Record<string, unknown>) =>
-      mapDbRowToComponentTemplateData(item)
-    );
+    return dedupeTemplatesByUniqueId(data || []);
   } catch (error) {
     console.error('Error in getComponentTemplatesFromSupabase:', error);
     return [];
+  }
+};
+
+/**
+ * 組み込み React バリアントが未登録なら Supabase に投入（ローカル開発用ブートストラップ）
+ */
+export const ensureReactVariantsSeeded = async (): Promise<void> => {
+  if (!supabase) return;
+
+  const basePayload = (seed: (typeof REACT_VARIANT_SEEDS)[number]) => ({
+    name: seed.nameRomanized,
+    name_romanized: seed.nameRomanized,
+    display_name: seed.displayName,
+    category: seed.category,
+    category_romanized: seed.categoryRomanized,
+    unique_id: seed.uniqueId,
+    section_id: seed.sectionId,
+    thumbnail_url: seed.thumbnailUrl,
+    description: seed.description,
+    code_template: '',
+    html_markup: '',
+    default_props: seed.defaultProps,
+    prop_schema: [],
+    style_schema: [],
+    css_files: seed.cssFiles,
+    js_files: seed.jsFiles,
+    is_active: true,
+    is_draft: false,
+    version: 1,
+    parent_id: null,
+  });
+
+  try {
+    for (const seed of REACT_VARIANT_SEEDS) {
+      const { data: existing } = await supabase
+        .from('component_templates')
+        .select('id, is_draft')
+        .eq('unique_id', seed.uniqueId)
+        .eq('is_active', true)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        if (!existing.is_draft) continue;
+        await releaseComponentTemplate(existing.id as string);
+        continue;
+      }
+
+      const withMode = {
+        ...basePayload(seed),
+        render_mode: 'react',
+        component_type: seed.componentType,
+      };
+
+      let insertError = (
+        await supabase.from('component_templates').insert(withMode)
+      ).error;
+
+      if (insertError?.message?.includes('render_mode')) {
+        insertError = (await supabase.from('component_templates').insert(basePayload(seed)))
+          .error;
+      }
+
+      if (insertError) {
+        console.warn(`ensureReactVariantsSeeded: failed for ${seed.uniqueId}`, insertError);
+      }
+    }
+  } catch (e) {
+    console.warn('ensureReactVariantsSeeded', e);
   }
 };
 
@@ -267,6 +316,8 @@ export const saveComponentTemplateToSupabase = async (
         is_draft: isDraft,
         version: nextVersion,
         parent_id: parentId,
+        render_mode: template.renderMode ?? 'dynamic',
+        component_type: template.componentType ?? null,
       })
       .select()
       .single();

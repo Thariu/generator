@@ -24,7 +24,6 @@ import { generateGlobalStylesCSS } from '../../utils/globalStylesHelper';
 import { generateComponentHTMLAsync, getRequiredCSSFiles, generateCSSLinks, getCategoryFromComponentType } from '../../utils/htmlGenerator';
 import { generateCSSTemplate, generateSectionId, saveCSSMetadata, isCSSGenerated, collectCustomCSSByCategory, appendCustomCSSToFile } from '../../utils/cssTemplateGenerator';
 import { wrapComponentHTML } from '../../utils/componentHtmlWrapper';
-import { componentTemplates } from '../../data/componentTemplates';
 import GlobalSettingsPanel from './GlobalSettingsPanel';
 import ProjectManager from './ProjectManager';
 
@@ -306,7 +305,7 @@ ${cssLinks}
   // 新しいカテゴリのCSSテンプレートを生成してダウンロード
   const generateAndDownloadMissingCSS = () => {
     const allCategories = new Set<string>();
-    const predefinedCategories = new Set(['KV', '料金', '番組配信', 'FAQ', 'footer']);
+    const predefinedCategories = new Set(['KV', '料金', '番組配信', 'footer']);
 
     // 全てのカテゴリを収集
     pageData.components.forEach(component => {

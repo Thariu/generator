@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, RefreshCw, Settings2 } from 'lucide-react';
 import { ComponentTemplate } from '../../types';
-import { componentTemplates } from '../../data/componentTemplates';
 import { usePageStore } from '../../store/usePageStore';
-import { getComponentTemplates, removeDuplicateTemplates, getComponentTemplatesFromSupabase } from '../../utils/componentTemplateStorage';
 import { fetchAndApplyTemplateByUniqueId } from '../../utils/dynamicTemplateSync';
+import { loadReleasedCatalog } from '../../utils/templateCatalog';
 import ComponentBuilder from './ComponentBuilder';
 import ComponentTemplateManager from './ComponentTemplateManager';
 
 const ComponentLibrary: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [customTemplates, setCustomTemplates] = useState<ComponentTemplate[]>([]);
-  const [supabaseTemplates, setSupabaseTemplates] = useState<ComponentTemplate[]>([]);
+  const [catalogTemplates, setCatalogTemplates] = useState<ComponentTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showComponentBuilder, setShowComponentBuilder] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
@@ -20,59 +18,14 @@ const ComponentLibrary: React.FC = () => {
   const { addComponent, pageData } = usePageStore();
 
   const SECRET_KEY = 'mode_admin';
-  // 「UI要素」「メディア」「お問い合わせ」カテゴリのコンポーネントを除外
   const excludedCategories = ['UI要素', 'メディア', 'お問い合わせ'];
-  
-  // 重複を排除（componentTemplates.tsに存在するものは除外）
-  const uniqueTemplates = React.useMemo(() => {
-    // componentTemplates.tsのuniqueIdとidのセットを作成
-    const componentTemplateIds = new Set<string>();
-    componentTemplates.forEach(t => {
-      if (t.uniqueId) componentTemplateIds.add(t.uniqueId);
-      if (t.id) componentTemplateIds.add(t.id);
-    });
-    
-    // localStorageのテンプレートから、componentTemplates.tsに存在するものを除外
-    const filteredCustomTemplates = customTemplates.filter(template => {
-      // idとuniqueIdの両方をチェック
-      return !componentTemplateIds.has(template.id) && 
-             !(template.uniqueId && componentTemplateIds.has(template.uniqueId));
-    });
 
-    const filteredSupabase = supabaseTemplates.filter((template) => {
-      if (componentTemplateIds.has(template.id)) return false;
-      if (template.uniqueId && componentTemplateIds.has(template.uniqueId)) return false;
-      const localIds = new Set(
-        filteredCustomTemplates.map((t) => t.uniqueId).filter(Boolean) as string[]
-      );
-      if (template.uniqueId && localIds.has(template.uniqueId)) return false;
-      return true;
-    });
-    
-    return [...componentTemplates, ...filteredCustomTemplates, ...filteredSupabase];
-  }, [componentTemplates, customTemplates, supabaseTemplates]);
-  
-  const allTemplates = uniqueTemplates.filter(
-    template => !excludedCategories.includes(template.category)
+  const allTemplates = catalogTemplates.filter(
+    (template) => !excludedCategories.includes(template.category)
   );
-  const categories = ['All', ...Array.from(new Set(allTemplates.map(t => t.category)))];
+  const categories = ['All', ...Array.from(new Set(allTemplates.map((t) => t.category)))];
 
-  useEffect(() => {
-    // 初回読み込み時に重複データを削除
-    try {
-      const removedCount = removeDuplicateTemplates(componentTemplates);
-      if (removedCount > 0) {
-        console.log(`重複するコンポーネント ${removedCount} 件をlocalStorageから削除しました`);
-      }
-    } catch (error) {
-      console.error('重複データの削除に失敗しました:', error);
-    }
-    
-    loadCustomTemplates();
-    loadSupabaseTemplates();
-  }, []);
-
-  const refreshActiveDynamicTemplatesOnPage = async () => {
+  const refreshActiveDynamicTemplatesOnPage = useCallback(async () => {
     const uniqueIds = Array.from(
       new Set(
         pageData.components
@@ -81,30 +34,26 @@ const ComponentLibrary: React.FC = () => {
       )
     );
     await Promise.all(uniqueIds.map((id) => fetchAndApplyTemplateByUniqueId(id, { force: true })));
-  };
+  }, [pageData.components]);
 
-  const loadSupabaseTemplates = async () => {
+  const loadCatalog = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const rows = await getComponentTemplatesFromSupabase();
-      const mapped: ComponentTemplate[] = rows.map((item) => ({
-        id: item.supabaseId || item.id,
-        name: item.displayName,
-        description: item.description || '',
-        category: item.category,
-        type: 'dynamic-template',
-        thumbnail: item.thumbnailUrl || '',
-        defaultProps: item.defaultProps || {},
-        uniqueId: item.uniqueId,
-        cssFiles: item.cssFiles,
-        jsFiles: item.jsFiles,
-        sectionId: item.sectionId,
-      }));
-      setSupabaseTemplates(mapped);
+      const items = await loadReleasedCatalog();
+      setCatalogTemplates(items);
       await refreshActiveDynamicTemplatesOnPage();
     } catch (e) {
-      console.error('Supabase templates load failed', e);
+      console.error('Catalog load failed', e);
+      setCatalogTemplates([]);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [refreshActiveDynamicTemplatesOnPage]);
+
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
+
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -122,39 +71,9 @@ const ComponentLibrary: React.FC = () => {
     return () => window.removeEventListener('keypress', handleKeyPress);
   }, []);
 
-  const loadCustomTemplates = () => {
-    setIsLoading(true);
-    try {
-      const data = getComponentTemplates();
-
-      const templates: ComponentTemplate[] = data
-        .filter(item => item.isActive)
-        .map(item => ({
-          id: item.id,
-          name: item.displayName,
-          description: item.description || '',
-          category: item.category,
-          type: (item.supabaseId || item.htmlMarkup
-            ? 'dynamic-template'
-            : item.name.replace('Component', '').toLowerCase()) as ComponentTemplate['type'],
-          thumbnail: item.thumbnailUrl || '',
-          defaultProps: item.defaultProps || {},
-          uniqueId: item.uniqueId,
-        }));
-      setCustomTemplates(templates);
-    } catch (error) {
-      console.error('Error loading custom templates:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-
   const isTemplateUsedOnPage = (template: ComponentTemplate) => {
     return pageData.components.some((c) => {
-      if (template.type === 'dynamic-template' && template.uniqueId) {
-        return c.templateUniqueId === template.uniqueId || c.templateId === template.id;
-      }
+      if (template.uniqueId && c.templateUniqueId === template.uniqueId) return true;
       if (c.templateId && c.templateId === template.id) return true;
       return (
         c.type === template.type &&
@@ -175,6 +94,8 @@ const ComponentLibrary: React.FC = () => {
       return;
     }
 
+    const isDynamic = template.renderMode === 'dynamic' || template.type === 'dynamic-template';
+
     const newComponent = {
       id: `${template.type}-${Date.now()}`,
       type: template.type,
@@ -182,8 +103,13 @@ const ComponentLibrary: React.FC = () => {
       style: { theme: 'light' as const, colorScheme: 'blue' as const },
       templateId: template.id,
       ...(template.uniqueId ? { templateUniqueId: template.uniqueId } : {}),
+      ...(isDynamic ? {} : {}),
     };
     addComponent(newComponent);
+
+    if (isDynamic && template.uniqueId) {
+      void fetchAndApplyTemplateByUniqueId(template.uniqueId, { force: true });
+    }
   };
 
   const containerStyle: React.CSSProperties = {
@@ -488,8 +414,7 @@ const ComponentLibrary: React.FC = () => {
         <ComponentTemplateManager
           onClose={() => setShowTemplateManager(false)}
           onTemplatesChanged={() => {
-            loadCustomTemplates();
-            void loadSupabaseTemplates();
+            void loadCatalog();
           }}
         />
       )}
@@ -510,8 +435,7 @@ const ComponentLibrary: React.FC = () => {
           }}
           onClick={() => {
             setShowComponentBuilder(false);
-            loadCustomTemplates();
-            void loadSupabaseTemplates();
+            void loadCatalog();
           }}
         >
           <div
@@ -540,8 +464,7 @@ const ComponentLibrary: React.FC = () => {
               <button
                 onClick={() => {
                   setShowComponentBuilder(false);
-                  loadCustomTemplates();
-                  void loadSupabaseTemplates();
+                  void loadCatalog();
                 }}
                 style={{
                   padding: '8px',
@@ -558,8 +481,7 @@ const ComponentLibrary: React.FC = () => {
             <ComponentBuilder
               onClose={() => {
                 setShowComponentBuilder(false);
-                loadCustomTemplates();
-                void loadSupabaseTemplates();
+                void loadCatalog();
               }}
             />
           </div>

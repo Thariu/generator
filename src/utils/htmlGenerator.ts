@@ -1,7 +1,12 @@
 // HTML generation utilities for component export
 import { ComponentData } from '../types';
-import { componentTemplates } from '../data/componentTemplates';
-import { getComponentTemplates } from './componentTemplateStorage';
+import { resolveLegacyTemplateId } from '../data/reactVariantSeeds';
+import {
+  getCatalogRowById,
+  getCatalogRowByUniqueId,
+  getCatalogRowForComponent,
+  getCssFilesForComponent,
+} from './templateCatalog';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { usePageStore } from '../store/usePageStore';
@@ -22,7 +27,6 @@ const PREDEFINED_CATEGORY_CSS_MAP: Record<string, string> = {
   'KV': 'kv.css',
   '料金': 'pricing.css',
   '番組配信': 'app-intro.css',
-  'FAQ': 'faq.css',
   'footer': 'footer.css'
 };
 
@@ -38,42 +42,23 @@ const getCSSFileNameForCategory = (category: string): string => {
 
 // コンポーネントタイプからカテゴリを取得
 export const getCategoryFromComponentType = (type: string): string | null => {
-  const template = componentTemplates.find(t => t.type === type);
-  if (template) {
-    return template.category;
-  }
-  // カスタムテンプレートも確認
-  const customTemplates = getComponentTemplates();
-  const customTemplate = customTemplates.find(t => t.name === type || t.uniqueId === type);
-  return customTemplate?.category || null;
+  const row = getCatalogRowForComponent({ id: '', type: type as ComponentData['type'], props: {} });
+  return row?.category ?? null;
 };
 
 // 使用されているコンポーネントからCSSファイルのリストを生成
 export const getRequiredCSSFiles = (components: ComponentData[]): string[] => {
   const cssFiles = new Set<string>();
 
-  components.forEach(component => {
-    // componentTemplates.tsから直接cssFilesを取得
-    const template = componentTemplates.find(t => t.type === component.type);
-    if (template && (template as any).cssFiles) {
-      (template as any).cssFiles.forEach((file: string) => cssFiles.add(file));
+  components.forEach((component) => {
+    const fromCatalog = getCssFilesForComponent(component);
+    if (fromCatalog.length > 0) {
+      fromCatalog.forEach((file) => cssFiles.add(file));
+      return;
     }
-    
-    // カスタムテンプレートも確認
-    const customTemplates = getComponentTemplates();
-    const customTemplate = customTemplates.find(t => {
-      const templateType = t.name.replace('Component', '').toLowerCase();
-      return templateType === component.type || t.uniqueId === component.type;
-    });
-    if (customTemplate?.cssFiles) {
-      customTemplate.cssFiles.forEach((file: string) => cssFiles.add(file));
-    }
-    
-    // フォールバック: カテゴリからCSSファイル名を生成（既存のロジック）
     const category = getCategoryFromComponentType(component.type);
-    if (category && !template && !customTemplate) {
-      const cssFileName = getCSSFileNameForCategory(category);
-      cssFiles.add(cssFileName);
+    if (category) {
+      cssFiles.add(getCSSFileNameForCategory(category));
     }
   });
 
@@ -126,7 +111,7 @@ const getComponentNameFromUniqueId = (uniqueId: string): string => {
 };
 
 // コンポーネントタイプからコンポーネント名を取得（componentRegistryからインポート）
-import { COMPONENT_TYPE_MAP, getComponentName } from './componentRegistry';
+import { getComponentName } from './componentRegistry';
 
 /**
  * ReactコンポーネントをHTML文字列に変換
@@ -153,16 +138,18 @@ const renderComponentToHTML = async (
       if (component.templateId) {
         let componentName: string | null = null;
         
-        // componentTemplates.tsから該当するテンプレートを取得
-        const template = componentTemplates.find(t => t.id === component.templateId || t.uniqueId === component.templateId);
-        
-        if (template) {
-          // uniqueIdからコンポーネント名を推測
-          const uniqueId = template.uniqueId || template.id;
-          componentName = getComponentNameFromUniqueId(uniqueId);
+        const catalogRow =
+          getCatalogRowById(component.templateId) ||
+          getCatalogRowByUniqueId(component.templateId);
+
+        if (catalogRow?.renderMode === 'react' && catalogRow.componentType) {
+          componentName = getComponentName(catalogRow.componentType as Parameters<typeof getComponentName>[0]);
+        } else if (catalogRow?.uniqueId) {
+          componentName = getComponentNameFromUniqueId(catalogRow.uniqueId);
         } else {
-          // テンプレートが見つからない場合、templateIdを直接uniqueIdとして使用
-          componentName = getComponentNameFromUniqueId(component.templateId);
+          componentName = getComponentNameFromUniqueId(
+            resolveLegacyTemplateId(component.templateId)
+          );
         }
         
         if (componentName && componentMap[componentName]) {
