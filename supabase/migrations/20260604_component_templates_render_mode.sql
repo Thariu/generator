@@ -11,7 +11,7 @@ ALTER TABLE public.component_templates
   CHECK (render_mode IN ('dynamic', 'react'));
 
 COMMENT ON COLUMN public.component_templates.render_mode IS 'dynamic: DynamicTemplateComponent + html_markup; react: COMPONENT_TYPE_MAP + default_props';
-COMMENT ON COLUMN public.component_templates.component_type IS 'When render_mode=react: kv, pricing, app-intro, etc.';
+COMMENT ON COLUMN public.component_templates.component_type IS 'When render_mode=react: kv, pricing, footer, etc.';
 
 CREATE INDEX IF NOT EXISTS component_templates_render_mode_idx
   ON public.component_templates (render_mode)

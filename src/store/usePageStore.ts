@@ -23,7 +23,7 @@ interface PageStore {
   addComponent: (component: ComponentData) => void;
   updateComponent: (id: string, updates: Partial<ComponentData>) => void;
   deleteComponent: (id: string) => void;
-  /** Supabase Realtime: 同一 unique_id の dynamic-template インスタンスの props をテンプレに揃える（履歴に積まない） */
+  /** Supabase 同期: html 等はテンプレ行に追従。props は default_props とマージし、ページ上の編集を優先（履歴に積まない） */
   syncDynamicTemplateInstancesFromRemote: (
     templateUniqueId: string,
     defaultProps: Record<string, any>,
@@ -167,13 +167,18 @@ export const usePageStore = create<PageStore>((set, get) => ({
 
   syncDynamicTemplateInstancesFromRemote: (templateUniqueId, defaultProps, latestSupabaseRowId) => {
     set((state) => {
+      const remoteDefaults = JSON.parse(
+        JSON.stringify(defaultProps ?? {})
+      ) as Record<string, any>;
+
       const newComponents = state.pageData.components.map((comp) => {
         if (comp.type !== 'dynamic-template' || comp.templateUniqueId !== templateUniqueId) {
           return comp;
         }
+        const instanceProps = comp.props ?? {};
         return {
           ...comp,
-          props: JSON.parse(JSON.stringify(defaultProps ?? {})) as Record<string, any>,
+          props: { ...remoteDefaults, ...instanceProps },
           ...(latestSupabaseRowId ? { templateId: latestSupabaseRowId } : {}),
         };
       });

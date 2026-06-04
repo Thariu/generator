@@ -4,18 +4,23 @@ import { uploadImage, ImageUploadResult } from '../../utils/imageHandler';
 
 interface ImageDropZoneProps {
   onImageUpload: (result: ImageUploadResult) => void;
+  /** 指定時は localStorage ではなくこの関数でアップロード */
+  customUpload?: (file: File) => Promise<ImageUploadResult>;
   currentImageUrl?: string;
   className?: string;
   placeholder?: string;
   showPreview?: boolean;
+  disabled?: boolean;
 }
 
 const ImageDropZone: React.FC<ImageDropZoneProps> = ({
   onImageUpload,
+  customUpload,
   currentImageUrl,
   className = '',
   placeholder = '画像をドラッグ&ドロップまたはクリックして選択',
-  showPreview = true
+  showPreview = true,
+  disabled = false,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -43,7 +48,8 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
+    if (disabled) return;
+
     const files = Array.from(e.dataTransfer.files);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
@@ -64,11 +70,12 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
   };
 
   const handleFileUpload = async (file: File) => {
+    if (disabled) return;
     setIsUploading(true);
     setError(null);
     
     try {
-      const result = await uploadImage(file);
+      const result = customUpload ? await customUpload(file) : await uploadImage(file);
       onImageUpload(result);
     } catch (error) {
       setError(error instanceof Error ? error.message : '画像のアップロードに失敗しました。');
@@ -78,6 +85,7 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
   };
 
   const handleClick = () => {
+    if (disabled) return;
     fileInputRef.current?.click();
   };
 
@@ -98,9 +106,10 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
     borderRadius: '8px',
     padding: '16px',
     textAlign: 'center',
-    cursor: 'pointer',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.65 : 1,
     transition: 'all 0.2s ease-in-out',
-    backgroundColor: isDragging ? '#f0f9ff' : '#fafafa',
+    backgroundColor: isDragging && !disabled ? '#f0f9ff' : '#fafafa',
     position: 'relative',
     minHeight: '120px',
     display: 'flex',

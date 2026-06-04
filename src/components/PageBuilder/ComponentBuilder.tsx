@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Plus, Trash2, Download, Copy, Check, Code, Wand2, Eye, AlertTriangle, History, Save } from 'lucide-react';
 import {
   validateComponentNameRomanized,
@@ -25,6 +25,14 @@ import {
   refreshDynamicTemplateNow,
 } from '../../utils/dynamicTemplateSync';
 import { scopeCSSWithSectionId } from '../../utils/cssTemplateGenerator';
+import ImageDropZone from '../UI/ImageDropZone';
+import CommonImageSelector from '../UI/CommonImageSelector';
+import {
+  uploadTemplateThumbnail,
+  resolveThumbnailPreviewUrl,
+  isDataUrlThumbnail,
+} from '../../utils/templateThumbnailUpload';
+import { clearCommonImagesCache } from '../../utils/commonImages';
 
 interface PropField {
   id: string;
@@ -600,6 +608,36 @@ const ComponentBuilder: React.FC<ComponentBuilderProps> = ({
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
 
   const { pageData, addComponent } = usePageStore();
+
+  const thumbnailUniqueId = useMemo(() => {
+    if (editingUniqueId) return editingUniqueId;
+    const finalCategory = isNewCategory ? newCategoryName : category;
+    const finalCategoryRomanized = isNewCategory ? newCategoryRomanized : categoryRomanized;
+    if (!componentName.trim() || !finalCategory.trim() || !finalCategoryRomanized.trim()) {
+      return '';
+    }
+    return generateComponentMetadata(finalCategory, finalCategoryRomanized, componentName).uniqueId;
+  }, [
+    editingUniqueId,
+    isNewCategory,
+    newCategoryName,
+    newCategoryRomanized,
+    category,
+    categoryRomanized,
+    componentName,
+  ]);
+
+  const handleTemplateThumbnailUpload = useCallback(
+    async (file: File) => {
+      if (!thumbnailUniqueId) {
+        throw new Error('コンポーネント名とカテゴリを入力してからサムネイルをアップロードしてください。');
+      }
+      const result = await uploadTemplateThumbnail(file, thumbnailUniqueId);
+      clearCommonImagesCache();
+      return result;
+    },
+    [thumbnailUniqueId]
+  );
 
   const applyLoadedTemplate = (template: ComponentTemplateData) => {
     if (template.renderMode === 'react') {
@@ -2239,6 +2277,103 @@ export default ${componentName};`;
               </div>
             </div>
           )}
+
+          <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#374151', marginBottom: '12px' }}>
+              ライブラリ表示（説明・サムネイル）
+            </h4>
+            <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px' }}>
+              コンポーネントライブラリのカードに表示されます。画像は{' '}
+              <code style={{ fontSize: '11px' }}>public/program/st/promo/generator_common/img/</code>{' '}
+              に保存されます（開発サーバー起動時のみアップロード可能）。
+            </p>
+
+            <div style={{ ...styles.field, marginBottom: '16px' }}>
+              <label style={styles.label}>説明（description）</label>
+              <textarea
+                style={{ ...styles.input, minHeight: '72px', resize: 'vertical' }}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="コンポーネントライブラリに表示する短い説明文"
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>サムネイル画像</label>
+              {!thumbnailUniqueId && (
+                <p style={{ fontSize: '12px', color: '#b45309', margin: '0 0 8px' }}>
+                  コンポーネント名とカテゴリを入力すると、画像をアップロードできます。
+                </p>
+              )}
+              {thumbnailUniqueId && (
+                <p style={{ fontSize: '11px', color: '#6b7280', margin: '0 0 8px', fontFamily: 'monospace' }}>
+                  保存ファイル名: thumbnail_{thumbnailUniqueId}.[拡張子]
+                </p>
+              )}
+              <ImageDropZone
+                currentImageUrl={resolveThumbnailPreviewUrl(thumbnailUrl)}
+                showPreview
+                disabled={!thumbnailUniqueId}
+                placeholder={
+                  thumbnailUniqueId
+                    ? 'サムネイルをドラッグ&ドロップまたはクリックして選択'
+                    : '先にコンポーネント名とカテゴリを入力してください'
+                }
+                customUpload={handleTemplateThumbnailUpload}
+                onImageUpload={(result) => setThumbnailUrl(result.url)}
+              />
+              {isDataUrlThumbnail(thumbnailUrl) && (
+                <p style={{ fontSize: '12px', color: '#b45309', marginTop: '8px' }}>
+                  旧形式（ブラウザ内保存）の画像です。公開用に再度アップロードするか、下から共通画像を選択してください。
+                </p>
+              )}
+
+              <div style={{ marginTop: '12px' }}>
+                <label style={{ ...styles.label, fontSize: '12px', marginBottom: '6px', display: 'block' }}>
+                  共通画像から選択
+                </label>
+                <CommonImageSelector
+                  currentImagePath={thumbnailUrl.startsWith('/') ? thumbnailUrl : undefined}
+                  onImageSelect={(path) => {
+                    setThumbnailUrl(path);
+                    clearCommonImagesCache();
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: '12px' }}>
+                <label style={{ ...styles.label, fontSize: '12px' }}>画像 URL（直接入力）</label>
+                <input
+                  type="text"
+                  style={styles.input}
+                  value={thumbnailUrl}
+                  onChange={(e) => setThumbnailUrl(e.target.value)}
+                  placeholder="/program/st/promo/generator_common/img/thumbnail_example.jpg"
+                />
+              </div>
+
+              {thumbnailUrl && (
+                <div style={{ marginTop: '12px' }}>
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 6px' }}>プレビュー</p>
+                  <img
+                    src={resolveThumbnailPreviewUrl(thumbnailUrl)}
+                    alt="サムネイルプレビュー"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '160px',
+                      objectFit: 'contain',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      backgroundColor: '#f9fafb',
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
 
           <div style={{ marginTop: '20px' }}>
             <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#374151', marginBottom: '12px' }}>

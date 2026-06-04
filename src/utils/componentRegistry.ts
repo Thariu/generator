@@ -9,7 +9,6 @@ export const COMPONENT_TYPE_MAP = {
   'headline': 'HeadlineComponent',
   'footer': 'FooterComponent',
   'pricing': 'PricingComponent',
-  'app-intro': 'AppIntroComponent',
   /** Supabase 駆動セクション（html_markup + Realtime） */
   'dynamic-template': 'DynamicTemplateComponent',
 } as const;

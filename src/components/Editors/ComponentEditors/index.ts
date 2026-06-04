@@ -6,7 +6,6 @@ import { HeadlineEditor } from './headline/HeadlineEditor';
 import { KVEditor } from './kv/KVEditor';
 import { FooterEditor } from './footer/FooterEditor';
 import { PricingEditor } from './pricing/PricingEditor';
-import { AppIntroEditor } from './streaming/AppIntroEditor';
 import React from 'react';
 
 export type ComponentEditor = React.FC<BaseEditorProps>;
@@ -20,7 +19,6 @@ export const componentEditors: Partial<Record<ComponentType, ComponentEditor>> =
   'kv': KVEditor,
   'footer': FooterEditor,
   'pricing': PricingEditor,
-  'app-intro': AppIntroEditor,
 };
 
 /**

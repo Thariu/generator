@@ -54,7 +54,7 @@ function rowFingerprint(row: Record<string, any>): string {
 const lastAppliedFingerprint = new Map<string, string>();
 
 /**
- * DB 行またはローカルデータをクライアントに反映（B: props を default_props で上書き）
+ * DB 行またはローカルデータをクライアントに反映（html_markup 等は row ストアへ。props はページ編集を優先してマージ）
  */
 export function applyTemplateRow(
   uniqueId: string,

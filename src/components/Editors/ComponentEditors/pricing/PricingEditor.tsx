@@ -158,6 +158,21 @@ export const PricingEditor: React.FC<BaseEditorProps> = (props) => {
           </button>
         </div>
       </div>
+
+      <div style={styles.section}>
+        <h3 style={styles.sectionTitle}>表示設定</h3>
+        <div style={styles.field}>
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={component.props.showPriceInfo2 !== false}
+              onChange={(e) => handlePropChange('showPriceInfo2', e.target.checked)}
+              style={styles.checkbox}
+            />
+            おすすめ訴求エリア（priceInfo2）を表示する
+          </label>
+        </div>
+      </div>
     </div>
   );
 };

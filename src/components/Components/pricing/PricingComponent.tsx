@@ -18,7 +18,8 @@ const PricingComponent: React.FC<PricingComponentProps> = ({ component }) => {
   const {
     mainPlan,
     additionalPlans,
-    showMustReadBox
+    showMustReadBox,
+    showPriceInfo2 = true,
   } = props;
 
   const {
@@ -168,7 +169,7 @@ const PricingComponent: React.FC<PricingComponentProps> = ({ component }) => {
         {/* メインプラン */}
         {mainPlan && (
           <div className="ChFeeWrapper">
-            <div className="chFee chFee2 chFee_style" id='priceInfo2'>
+            <div className="chFee chFee2 chFee_style">
               <p className="tit">
                 {mainPlan.description}をはじめ、<span><img src='/program/st/promo/generator_common/img/kihon_logo.gif' alt='基本プラン' className='guard'/></span>マークのある番組が全部見放題！
               </p>
@@ -274,6 +275,30 @@ const PricingComponent: React.FC<PricingComponentProps> = ({ component }) => {
             <div className="c-btn c-btn--blueline"><a href="https://www.skyperfectv.co.jp/plan/pack/basic/">各プラン・セットの<br/>料金一覧はこちら</a></div>
         </div>
       </div>
+
+      {showPriceInfo2 && (
+        <div className="priceInfo priceInfo2" id="priceInfo2">
+          <p className="subTitle mainColor">たくさん楽しむなら、50ch見放題のスカパー！基本プランがおすすめ！</p>
+          <p className="img">
+            <img src="/program/st/promo/generator_common/img/point_pc.png" alt="" className="pc" />
+            <img src="/program/st/promo/generator_common/img/point_sp.png" alt="" className="sp" />
+          </p>
+          <div className="flexWrapper">
+            <div className="c-btn c-btn--red">
+              <a href="" className="js-modal" data-target="modal-confirm">ご加入はこちら</a>
+            </div>
+            <div className="c-btn c-btn--blank c-btn--blue">
+              <a
+                href="https://my.skyperfectv.co.jp/login/?bk_url=https%3A%2F%2Fmy.skyperfectv.co.jp%2Fmy%2Fchannel-change%2Fcas"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span>ご契約追加はこちら</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

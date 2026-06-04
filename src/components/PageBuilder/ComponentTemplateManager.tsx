@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, RefreshCw, Pencil, Upload, X, Plus } from 'lucide-react';
+import { Search, RefreshCw, Pencil, Upload, X, Plus, Image as ImageIcon } from 'lucide-react';
+import { resolveThumbnailPreviewUrl } from '../../utils/templateThumbnailUpload';
 import {
   getManagedComponentTemplatesFromSupabase,
   releaseComponentTemplate,
@@ -29,7 +30,7 @@ const overlayStyle: React.CSSProperties = {
 const panelStyle: React.CSSProperties = {
   backgroundColor: '#fff',
   borderRadius: '12px',
-  width: 'min(720px, 100%)',
+  width: 'min(840px, 100%)',
   maxHeight: '90vh',
   display: 'flex',
   flexDirection: 'column',
@@ -104,6 +105,54 @@ const cardStyle: React.CSSProperties = {
   marginBottom: '10px',
 };
 
+const cardBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '14px',
+  alignItems: 'flex-start',
+};
+
+const cardThumbnailWrapStyle: React.CSSProperties = {
+  flexShrink: 0,
+  width: '120px',
+  aspectRatio: '16 / 9',
+  borderRadius: '6px',
+  overflow: 'hidden',
+  backgroundColor: '#f3f4f6',
+  border: '1px solid #e5e7eb',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const cardThumbnailImgStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+};
+
+const cardMainStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+};
+
+const cardDescriptionStyle: React.CSSProperties = {
+  margin: '8px 0 0',
+  fontSize: '13px',
+  color: '#4b5563',
+  lineHeight: 1.45,
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+};
+
+const cardNoDescriptionStyle: React.CSSProperties = {
+  margin: '8px 0 0',
+  fontSize: '12px',
+  color: '#9ca3af',
+  fontStyle: 'italic',
+};
+
 const cardActionsStyle: React.CSSProperties = {
   display: 'flex',
   gap: '8px',
@@ -129,6 +178,27 @@ const publishBtnStyle: React.CSSProperties = {
   borderColor: '#86efac',
   backgroundColor: '#ecfdf5',
   color: '#047857',
+};
+
+const TemplateCardThumbnail: React.FC<{ thumbnailUrl?: string; displayName: string }> = ({
+  thumbnailUrl,
+  displayName,
+}) => {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const src = thumbnailUrl && !loadFailed ? resolveThumbnailPreviewUrl(thumbnailUrl) : '';
+
+  if (!src) {
+    return <ImageIcon size={28} color="#9ca3af" aria-hidden />;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={`${displayName} のサムネイル`}
+      style={cardThumbnailImgStyle}
+      onError={() => setLoadFailed(true)}
+    />
+  );
 };
 
 const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
@@ -161,7 +231,8 @@ const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
     return (
       t.displayName.toLowerCase().includes(q) ||
       t.uniqueId.toLowerCase().includes(q) ||
-      t.category.toLowerCase().includes(q)
+      t.category.toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q)
     );
   });
 
@@ -275,7 +346,7 @@ const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
           />
           <input
             type="search"
-            placeholder="名前・unique_id・カテゴリで検索"
+            placeholder="名前・説明・unique_id・カテゴリで検索"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={searchInputStyle}
@@ -287,60 +358,98 @@ const ComponentTemplateManager: React.FC<ComponentTemplateManagerProps> = ({
           {!isLoading && filtered.length === 0 && (
             <p style={{ color: '#6b7280', fontSize: '14px' }}>テンプレートがありません</p>
           )}
-          {filtered.map((t) => (
-            <article key={t.uniqueId} style={cardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>{t.displayName}</h3>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      backgroundColor: t.renderMode === 'react' ? '#e0e7ff' : '#f3e8ff',
-                      color: t.renderMode === 'react' ? '#3730a3' : '#6b21a8',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {t.renderMode === 'react' ? `React (${t.componentType || '—'})` : 'Dynamic'}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      backgroundColor: t.isDraft ? '#fef3c7' : '#d1fae5',
-                      color: t.isDraft ? '#92400e' : '#065f46',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {t.isDraft ? 'ドラフト' : '公開済み'}
-                  </span>
+          {filtered.map((t) => {
+            const descriptionText = (t.description || '').trim();
+
+            return (
+              <article key={t.uniqueId} style={cardStyle}>
+                <div style={cardBodyStyle}>
+                  <div style={cardThumbnailWrapStyle} title={t.displayName}>
+                    <TemplateCardThumbnail thumbnailUrl={t.thumbnailUrl} displayName={t.displayName} />
+                  </div>
+
+                  <div style={cardMainStyle}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>{t.displayName}</h3>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            backgroundColor: t.renderMode === 'react' ? '#e0e7ff' : '#f3e8ff',
+                            color: t.renderMode === 'react' ? '#3730a3' : '#6b21a8',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {t.renderMode === 'react' ? `React (${t.componentType || '—'})` : 'Dynamic'}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            backgroundColor: t.isDraft ? '#fef3c7' : '#d1fae5',
+                            color: t.isDraft ? '#92400e' : '#065f46',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {t.isDraft ? 'ドラフト' : '公開済み'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {descriptionText ? (
+                      <p style={cardDescriptionStyle}>{descriptionText}</p>
+                    ) : (
+                      <p style={cardNoDescriptionStyle}>説明未設定</p>
+                    )}
+
+                    <p
+                      style={{
+                        margin: descriptionText ? '6px 0 0' : '4px 0 0',
+                        fontSize: '12px',
+                        color: '#6b7280',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      {t.uniqueId}
+                    </p>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#9ca3af' }}>
+                      {t.category} · v{t.version ?? 1} ·{' '}
+                      {t.updatedAt ? new Date(t.updatedAt).toLocaleString('ja-JP') : '—'}
+                    </p>
+
+                    <div style={cardActionsStyle}>
+                      {t.renderMode !== 'react' && (
+                        <button
+                          type="button"
+                          style={actionBtnStyle}
+                          onClick={() => setEditingUniqueId(t.uniqueId)}
+                        >
+                          <Pencil size={14} />
+                          編集
+                        </button>
+                      )}
+                      {t.isDraft && (
+                        <button type="button" style={publishBtnStyle} onClick={() => void handlePublish(t)}>
+                          <Upload size={14} />
+                          公開
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#6b7280', fontFamily: 'monospace' }}>
-                {t.uniqueId}
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#9ca3af' }}>
-                {t.category} · v{t.version ?? 1} ·{' '}
-                {t.updatedAt ? new Date(t.updatedAt).toLocaleString('ja-JP') : '—'}
-              </p>
-              <div style={cardActionsStyle}>
-                {t.renderMode !== 'react' && (
-                <button type="button" style={actionBtnStyle} onClick={() => setEditingUniqueId(t.uniqueId)}>
-                  <Pencil size={14} />
-                  編集
-                </button>
-                )}
-                {t.isDraft && (
-                  <button type="button" style={publishBtnStyle} onClick={() => void handlePublish(t)}>
-                    <Upload size={14} />
-                    公開
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </div>
     </div>

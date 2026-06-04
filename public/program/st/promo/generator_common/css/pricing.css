@@ -43,6 +43,9 @@
     width: 100%;
     margin: 0 auto;
   }
+  #priceArea .priceInfo:not(:last-child) {
+    padding-bottom: 120px;
+  }
   #priceArea .priceTable {
     display: flex;
     justify-content: center;

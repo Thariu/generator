@@ -25,6 +25,12 @@ let cachedImages: CommonImageInfo[] | null = null;
 let cacheTimestamp: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5分間キャッシュ
 
+/** 共通画像一覧キャッシュをクリア（サムネイルアップロード後など） */
+export const clearCommonImagesCache = (): void => {
+  cachedImages = null;
+  cacheTimestamp = 0;
+};
+
 export const getCommonImagesList = async (): Promise<CommonImageInfo[]> => {
   // キャッシュが有効な場合はキャッシュを返す
   const now = Date.now();

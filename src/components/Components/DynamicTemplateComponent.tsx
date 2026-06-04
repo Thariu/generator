@@ -134,29 +134,24 @@ const DynamicTemplateComponent: React.FC<DynamicTemplateComponentProps> = ({ com
   }
 
   return (
-    <section style={containerStyle}>
-      <div style={innerStyle}>
-        <div
-          key={`${uniqueId}-${rowSlice?.supabaseRowId ?? ''}-${htmlMarkup.length}`}
-          ref={bindRef as React.RefObject<HTMLDivElement>}
-          style={
-            {
-              ...innerStyle,
-              ...(gs && {
-                '--main-color': gs.mainColor,
-                '--base-color': gs.baseColor,
-                '--base-color-sub': gs.baseColorSub,
-                '--base2-color': gs.base2Color,
-                '--accent-color': gs.accentColor,
-                '--common-color': gs.commonColor,
-                '--common-color-bg': gs.commonColorBg,
-              }),
-            } as React.CSSProperties
-          }
-          dangerouslySetInnerHTML={{ __html: wrappedHtml }}
-        />
-      </div>
-    </section>
+    <div
+      key={`${uniqueId}-${rowSlice?.supabaseRowId ?? ''}-${htmlMarkup.length}`}
+      ref={bindRef as React.RefObject<HTMLDivElement>}
+      style={
+        {
+          ...(gs && {
+            '--main-color': gs.mainColor,
+            '--base-color': gs.baseColor,
+            '--base-color-sub': gs.baseColorSub,
+            '--base2-color': gs.base2Color,
+            '--accent-color': gs.accentColor,
+            '--common-color': gs.commonColor,
+            '--common-color-bg': gs.commonColorBg,
+          }),
+        } as React.CSSProperties
+      }
+      dangerouslySetInnerHTML={{ __html: wrappedHtml }}
+    />
   );
 };
 

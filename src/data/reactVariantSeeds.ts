@@ -83,6 +83,7 @@ export const REACT_VARIANT_SEEDS: ReactVariantSeed[] = [
     jsFiles: [],
     defaultProps: {
       showMustReadBox: true,
+      showPriceInfo2: true,
       mainPlan: {
         description: 'ブラックリスト',
         name: 'スカパー！基本プラン',
@@ -107,29 +108,12 @@ export const REACT_VARIANT_SEEDS: ReactVariantSeed[] = [
       ],
     },
   },
-  {
-    nameRomanized: 'streaming-intro',
-    displayName: '番組配信とは',
-    category: '番組配信',
-    categoryRomanized: 'streaming',
-    uniqueId: 'streaming_streaming_intro',
-    sectionId: 'streaming_streaming_introArea',
-    description: 'スカパー！番組配信の紹介とアプリダウンロードを促進するコンポーネント',
-    thumbnailUrl: '/program/st/promo/generator_common/img/thumbnail_app-intro-1.jpg',
-    componentType: 'app-intro',
-    cssFiles: ['app-intro.css'],
-    jsFiles: [],
-    defaultProps: {
-      balloonText: 'ブラックリスト',
-    },
-  },
 ];
 
 /** 旧 componentTemplates.ts の id → unique_id（保存済みページの templateId 互換） */
 export const LEGACY_TEMPLATE_ID_MAP: Record<string, string> = {
   'kv-1': 'kv_program_hero',
   'pricing-1': 'pricing_price_table',
-  'app-intro-1': 'streaming_streaming_intro',
 };
 
 const now = () => new Date().toISOString();

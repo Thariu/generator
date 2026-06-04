@@ -304,7 +304,7 @@ ${cssLinks}
   // 新しいカテゴリのCSSテンプレートを生成してダウンロード
   const generateAndDownloadMissingCSS = () => {
     const allCategories = new Set<string>();
-    const predefinedCategories = new Set(['KV', '料金', '番組配信', 'footer']);
+    const predefinedCategories = new Set(['KV', '料金', 'footer']);
 
     // 全てのカテゴリを収集
     pageData.components.forEach(component => {

@@ -169,8 +169,6 @@ const PropertiesPanel: React.FC = () => {
         return 'フッター';
       case 'pricing':
         return '料金';
-      case 'app-intro':
-        return '番組配信';
       default:
         return type.charAt(0).toUpperCase() + type.slice(1);
     }
@@ -191,8 +189,6 @@ const PropertiesPanel: React.FC = () => {
         return 'フッター';
       case 'pricing':
         return '料金表示';
-      case 'app-intro':
-        return '番組配信とは';
       default:
         return `${getComponentDisplayName(component.type)}コンポーネント`;
     }
